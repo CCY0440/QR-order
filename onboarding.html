@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商家管理系統 - 初始化設定</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" />
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 美化捲軸 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #e5e7eb;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d1d5db;
+        }
+    </style>
+</head>
+
+<body class="bg-[#f8fafc] min-h-screen flex items-center justify-center p-6 text-gray-800 selection:bg-emerald-200">
+
+    <div
+        class="w-full max-w-5xl bg-white rounded-3xl shadow-xl border border-gray-100 flex flex-col h-[85vh] min-h-[650px] overflow-hidden">
+
+        <div class="px-12 py-8 bg-emerald-50/30 border-b border-gray-100 shrink-0">
+            <h2 id="step-title" class="text-2xl font-bold text-gray-800 mb-6">歡迎加入！讓我們開始設定您的專屬點餐系統</h2>
+            <div class="flex items-center justify-between relative max-w-3xl mx-auto">
+                <div class="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-gray-200 -z-10 rounded-full"></div>
+                <div id="progress-line"
+                    class="absolute left-0 top-1/2 -translate-y-1/2 w-0 h-1 bg-emerald-500 -z-10 rounded-full transition-all duration-500">
+                </div>
+
+                <div class="flex flex-col items-center gap-2 bg-transparent z-10">
+                    <div id="dot-1"
+                        class="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold shadow-md transition-colors">
+                        1</div>
+                    <span id="text-1" class="text-sm font-bold text-emerald-600">基本資訊</span>
+                </div>
+                <div class="flex flex-col items-center gap-2 bg-transparent z-10">
+                    <div id="dot-2"
+                        class="w-10 h-10 rounded-full bg-white border-2 border-gray-200 text-gray-400 flex items-center justify-center font-bold transition-colors">
+                        2</div>
+                    <span id="text-2" class="text-sm font-bold text-gray-400">桌號管理</span>
+                </div>
+                <div class="flex flex-col items-center gap-2 bg-transparent z-10">
+                    <div id="dot-3"
+                        class="w-10 h-10 rounded-full bg-white border-2 border-gray-200 text-gray-400 flex items-center justify-center font-bold transition-colors">
+                        3</div>
+                    <span id="text-3" class="text-sm font-bold text-gray-400">上架菜單</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto relative p-12">
+
+            <div id="step-content-1" class="fade-in absolute inset-0 p-12 h-max max-w-4xl mx-auto">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">店家名稱 <span
+                                    class="text-red-500">*</span></label>
+                            <input type="text" id="setup-store-name" placeholder="例如：雅緻景觀餐廳"
+                                class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">聯絡電話</label>
+                            <input type="tel" id="setup-phone" placeholder="02-1234-5678"
+                                class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">店家地址</label>
+                            <input type="text" id="setup-address" placeholder="台北市內湖區..."
+                                class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all">
+                        </div>
+                    </div>
+
+                    <div class="space-y-6 flex flex-col">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">品牌 Logo (選填)</label>
+                            <div id="logo-upload-area"
+                                class="border-2 border-dashed border-gray-300 rounded-xl h-32 flex flex-col items-center justify-center text-gray-400 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-500 cursor-pointer transition-colors group bg-gray-50 overflow-hidden relative">
+                                <img id="logo-preview" class="absolute inset-0 w-full h-full object-contain hidden" />
+                                <button id="btn-remove-logo"
+                                    class="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hidden hover:bg-red-600 transition-colors z-20">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                </button>
+                                <div id="upload-placeholder" class="flex flex-col items-center">
+                                    <i data-lucide="image-plus" class="w-8 h-8 mb-2"></i>
+                                    <span class="text-sm font-medium">點擊上傳圖片</span>
+                                </div>
+                            </div>
+                            <input type="file" id="logo-file-input" class="hidden" accept="image/*">
+                        </div>
+
+                        <div class="flex-1 flex flex-col">
+                            <label class="block text-sm font-bold text-gray-700 mb-2">店家簡介</label>
+                            <textarea id="setup-description" placeholder="向顧客介紹您的品牌故事、招牌特色..."
+                                class="w-full flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all resize-none min-h-[120px]"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="step-content-2" class="fade-in absolute inset-0 p-12 h-max max-w-5xl mx-auto hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                    <div class="lg:col-span-1 space-y-6">
+                        <div class="bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                            <h3 class="font-bold text-gray-800 text-lg mb-2">桌數快速建立</h3>
+                            <p class="text-sm text-gray-500 mb-5">請輸入您的餐廳總桌數，系統將為您一鍵生成 QR Code。</p>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">生成數量</label>
+                            <input type="number" id="setup-table-count" value="10" min="1" max="100"
+                                class="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold text-lg mb-4">
+                        </div>
+                    </div>
+                    <div class="lg:col-span-2">
+                        <div class="flex justify-between items-end mb-4">
+                            <h3 class="font-bold text-gray-800 text-lg">QR Code 預覽</h3>
+                            <button
+                                class="text-emerald-600 font-bold bg-emerald-50 px-4 py-2 rounded-lg hover:bg-emerald-100 transition-colors flex items-center gap-2 text-sm border border-emerald-200">
+                                <i data-lucide="download-cloud" class="w-4 h-4"></i> 批次下載 ZIP
+                            </button>
+                        </div>
+                        <div id="table-preview-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="step-content-3" class="fade-in absolute inset-0 p-12 h-max max-w-4xl mx-auto hidden">
+                <div class="flex flex-col gap-8">
+                    <div>
+                        <h3 class="font-bold text-gray-800 text-lg">初步建立您的菜單</h3>
+                        <p class="text-sm text-gray-500 mt-1">可先建立幾道招牌菜，之後在後台可以隨時擴充。</p>
+                    </div>
+
+                    <div
+                        class="bg-gray-50 p-6 rounded-2xl border border-gray-100 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <div class="md:col-span-1">
+                            <label class="block text-xs font-bold text-gray-500 mb-2 uppercase">菜品名稱</label>
+                            <input type="text" id="menu-item-name" placeholder="例如：拿鐵咖啡"
+                                class="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500">
+                        </div>
+                        <div class="md:col-span-1">
+                            <label class="block text-xs font-bold text-gray-500 mb-2 uppercase">分類 (如：飲品)</label>
+                            <input type="text" id="menu-item-category" placeholder="主食 / 甜點"
+                                class="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500">
+                        </div>
+                        <div class="md:col-span-1">
+                            <label class="block text-xs font-bold text-gray-500 mb-2 uppercase">價格</label>
+                            <input type="number" id="menu-item-price" placeholder="150"
+                                class="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500">
+                        </div>
+                        <button id="btn-add-item"
+                            class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
+                            <i data-lucide="plus" class="w-5 h-5"></i> 加入列表
+                        </button>
+                    </div>
+
+                    <div class="space-y-3" id="menu-items-list">
+                        <p class="text-center text-gray-400 py-10 border-2 border-dashed border-gray-100 rounded-2xl">
+                            目前還沒有新增任何菜品</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        <div class="px-12 py-6 border-t border-gray-100 bg-gray-50 shrink-0 flex justify-between items-center z-10">
+            <button id="btn-prev"
+                class="text-gray-500 font-bold hover:text-gray-800 transition-colors flex items-center gap-2 px-4 py-2 invisible">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i> 返回上一步
+            </button>
+            <button id="btn-next"
+                class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-10 py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-500/30 active:scale-95 flex items-center gap-2 text-lg">
+                儲存並下一步 <i data-lucide="arrow-right" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+    </div>
+    <script src="./js/onboarding.js"></script>
+</body>
+
+</html>
