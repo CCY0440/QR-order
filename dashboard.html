@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理後台 - QR 點餐系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" />
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #e5e7eb;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d1d5db;
+        }
+
+        /* 內容切換的淡入動畫 */
+        .fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-[#f8fafc] text-gray-800 h-screen overflow-hidden flex selection:bg-emerald-200">
+
+    <aside id="sidebar"
+        class="bg-white w-64 border-r border-gray-100 flex flex-col transition-transform duration-300 absolute z-50 h-full lg:relative lg:translate-x-0 -translate-x-full">
+        <div class="h-16 flex items-center px-6 border-b border-gray-100 shrink-0">
+            <div class="w-8 h-8 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center mr-3">
+                <i data-lucide="utensils" class="w-5 h-5"></i>
+            </div>
+            <span class="font-bold text-lg tracking-wide text-gray-800">雅緻餐廳</span>
+            <button id="close-sidebar" class="ml-auto lg:hidden text-gray-400 hover:text-gray-600">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1" id="nav-menu">
+            <p class="px-3 text-xs font-bold text-gray-400 mb-2 mt-2 tracking-wider">營運核心</p>
+            <a href="#" data-target="section-overview" data-title="總覽大廳"
+                class="nav-link active flex items-center gap-3 px-3 py-2.5 bg-emerald-50 text-emerald-600 rounded-xl font-bold transition-colors">
+                <i data-lucide="layout-dashboard" class="w-5 h-5"></i> 總覽大廳
+            </a>
+            <a href="#" data-target="section-orders" data-title="訂單管理"
+                class="nav-link flex items-center gap-3 px-3 py-2.5 text-gray-500 hover:bg-gray-50 hover:text-gray-800 rounded-xl font-medium transition-colors">
+                <i data-lucide="receipt" class="w-5 h-5"></i> 訂單管理
+                <span class="ml-auto bg-red-100 text-red-600 py-0.5 px-2 rounded-full text-[10px] font-bold">3</span>
+            </a>
+            <a href="#" data-target="section-menu" data-title="菜單管理"
+                class="nav-link flex items-center gap-3 px-3 py-2.5 text-gray-500 hover:bg-gray-50 hover:text-gray-800 rounded-xl font-medium transition-colors">
+                <i data-lucide="book-open" class="w-5 h-5"></i> 菜單管理
+            </a>
+            <a href="#" data-target="section-tables" data-title="桌號與 QR Code"
+                class="nav-link flex items-center gap-3 px-3 py-2.5 text-gray-500 hover:bg-gray-50 hover:text-gray-800 rounded-xl font-medium transition-colors">
+                <i data-lucide="grid" class="w-5 h-5"></i> 桌號管理
+            </a>
+
+            <p class="px-3 text-xs font-bold text-gray-400 mb-2 mt-6 tracking-wider">數據與管理</p>
+            <a href="#" data-target="section-reports" data-title="營收報表"
+                class="nav-link flex items-center gap-3 px-3 py-2.5 text-gray-500 hover:bg-gray-50 hover:text-gray-800 rounded-xl font-medium transition-colors">
+                <i data-lucide="pie-chart" class="w-5 h-5"></i> 營收報表
+            </a>
+            <a href="#" data-target="section-employees" data-title="員工管理"
+                class="nav-link flex items-center gap-3 px-3 py-2.5 text-gray-500 hover:bg-gray-50 hover:text-gray-800 rounded-xl font-medium transition-colors">
+                <i data-lucide="users" class="w-5 h-5"></i> 員工管理
+            </a>
+            <a href="#" data-target="section-settings" data-title="店家設定"
+                class="nav-link flex items-center gap-3 px-3 py-2.5 text-gray-500 hover:bg-gray-50 hover:text-gray-800 rounded-xl font-medium transition-colors">
+                <i data-lucide="settings" class="w-5 h-5"></i> 店家設定
+            </a>
+
+            <p class="px-3 text-xs font-bold text-gray-400 mb-2 mt-6 tracking-wider">系統支援</p>
+            <a href="#" data-target="section-help" data-title="幫助中心"
+                class="nav-link flex items-center gap-3 px-3 py-2.5 text-gray-500 hover:bg-gray-50 hover:text-gray-800 rounded-xl font-medium transition-colors">
+                <i data-lucide="help-circle" class="w-5 h-5"></i> 幫助中心
+            </a>
+        </nav>
+
+        <div class="p-4 border-t border-gray-100 shrink-0">
+            <button
+                class="flex items-center gap-3 px-3 py-2 w-full text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl font-medium transition-colors">
+                <i data-lucide="log-out" class="w-5 h-5"></i> 登出系統
+            </button>
+        </div>
+    </aside>
+
+    <div id="sidebar-overlay"
+        class="fixed inset-0 bg-gray-800/20 backdrop-blur-sm z-40 hidden lg:hidden transition-opacity"></div>
+
+    <main class="flex-1 flex flex-col min-w-0 h-full relative">
+
+        <header
+            class="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-4 lg:px-8 shrink-0 z-10">
+            <div class="flex items-center gap-4">
+                <button id="open-sidebar" class="lg:hidden p-2 text-gray-500 hover:bg-gray-50 rounded-lg">
+                    <i data-lucide="menu" class="w-6 h-6"></i>
+                </button>
+                <h1 id="header-title" class="font-bold text-gray-800 text-lg hidden sm:block">總覽大廳</h1>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <p class="text-sm font-medium text-gray-500 hidden md:block">營業中</p>
+                <div class="w-px h-6 bg-gray-200 hidden md:block"></div>
+                <button
+                    class="relative p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors">
+                    <i data-lucide="bell" class="w-5 h-5"></i>
+                    <span
+                        class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 border-2 border-white rounded-full"></span>
+                </button>
+                <div
+                    class="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 border-2 border-white shadow-sm cursor-pointer">
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-4 lg:p-8 relative">
+
+            <div id="section-overview" class="content-section max-w-6xl mx-auto space-y-6 lg:space-y-8 fade-in">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-6">
+                    <div
+                        class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative overflow-hidden group">
+                        <span class="text-sm font-bold text-gray-500 mb-1 z-10">今日營業額</span>
+                        <div class="flex items-baseline gap-1 z-10">
+                            <span class="text-lg font-bold text-gray-700">NT$</span>
+                            <span class="text-3xl font-bold text-gray-800 tracking-tight">12,480</span>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative overflow-hidden group">
+                        <span class="text-sm font-bold text-gray-500 mb-1 z-10">今日完成訂單</span>
+                        <div class="flex items-baseline gap-1 z-10">
+                            <span class="text-3xl font-bold text-gray-800 tracking-tight">36</span>
+                            <span class="text-sm font-bold text-gray-500">筆</span>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-red-50 border border-red-100 p-5 rounded-2xl shadow-sm flex flex-col relative overflow-hidden">
+                        <span class="text-sm font-bold text-red-600 mb-1 z-10 flex items-center gap-1"><i
+                                data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> 廚房待製作</span>
+                        <div class="flex items-baseline gap-1 z-10">
+                            <span class="text-3xl font-bold text-red-600 tracking-tight">3</span>
+                            <span class="text-sm font-bold text-red-500">筆</span>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative overflow-hidden group">
+                        <span class="text-sm font-bold text-gray-500 mb-1 z-10">目前入座桌數</span>
+                        <div class="flex items-baseline gap-1 z-10">
+                            <span class="text-3xl font-bold text-gray-800 tracking-tight">5</span>
+                            <span class="text-sm font-bold text-gray-500">/ 15 桌</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="font-bold text-gray-800 text-lg mb-4">即時訂單動態</h3>
+                    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+                        <div class="divide-y divide-gray-100">
+                            <div
+                                class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-50 transition-colors">
+                                <div class="flex items-start sm:items-center gap-4">
+                                    <div
+                                        class="w-12 h-12 bg-red-100 text-red-600 rounded-xl flex flex-col items-center justify-center shrink-0">
+                                        <span class="text-[10px] font-bold">桌號</span>
+                                        <span class="text-lg font-black leading-none mt-0.5">3</span>
+                                    </div>
+                                    <div>
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="font-bold text-gray-800">碳烤肋眼牛排 x1, 松露野菇燉飯 x2</span>
+                                        </div>
+                                        <div class="text-xs font-medium text-gray-500">15:28 下單 • NT$ 1,720</div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2 shrink-0">
+                                    <span
+                                        class="px-3 py-1.5 bg-red-50 text-red-600 border border-red-100 rounded-lg text-xs font-bold animate-pulse">製作中</span>
+                                    <button
+                                        class="px-4 py-1.5 bg-gray-800 text-white rounded-lg text-xs font-bold hover:bg-gray-900 transition-colors">完成出餐</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="section-orders" class="content-section hidden max-w-6xl mx-auto space-y-6 fade-in">
+
+                <div
+                    class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+
+                    <div
+                        class="flex space-x-1 bg-gray-50 p-1.5 rounded-xl border border-gray-100 w-full sm:w-auto overflow-x-auto hide-scroll">
+                        <button
+                            class="order-tab active px-5 py-2 text-sm font-bold bg-white text-emerald-600 rounded-lg shadow-sm transition-all whitespace-nowrap"
+                            data-status="all">全部訂單</button>
+                        <button
+                            class="order-tab px-5 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all whitespace-nowrap"
+                            data-status="pending">待處理 (3)</button>
+                        <button
+                            class="order-tab px-5 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all whitespace-nowrap"
+                            data-status="completed">已出餐</button>
+                    </div>
+
+                    <div class="flex items-center gap-3 w-full sm:w-auto">
+                        <div class="relative w-full sm:w-64">
+                            <i data-lucide="search"
+                                class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                            <input type="text" placeholder="搜尋桌號或訂單編號..."
+                                class="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all">
+                        </div>
+                        <button
+                            class="p-2.5 bg-gray-50 border border-gray-200 text-gray-500 rounded-xl hover:bg-gray-100 hover:text-emerald-600 transition-colors shrink-0">
+                            <i data-lucide="calendar" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse min-w-[800px]">
+                            <thead>
+                                <tr
+                                    class="bg-gray-50/80 border-b border-gray-100 text-[13px] font-bold text-gray-500 tracking-wider">
+                                    <th class="p-4 pl-6 font-medium">訂單編號 / 時間</th>
+                                    <th class="p-4 font-medium">桌號</th>
+                                    <th class="p-4 font-medium">餐點摘要</th>
+                                    <th class="p-4 font-medium">總金額</th>
+                                    <th class="p-4 font-medium">狀態</th>
+                                    <th class="p-4 text-right pr-6 font-medium">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 text-sm">
+
+                                <tr class="hover:bg-emerald-50/30 transition-colors group">
+                                    <td class="p-4 pl-6">
+                                        <div class="font-mono text-gray-800 font-bold mb-0.5">#ORD-0042</div>
+                                        <div class="text-xs text-gray-400 font-medium">今日 15:28</div>
+                                    </td>
+                                    <td class="p-4">
+                                        <div
+                                            class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 font-black border border-emerald-100 shadow-sm">
+                                            3</div>
+                                    </td>
+                                    <td class="p-4 max-w-[200px] truncate text-gray-600 font-medium"
+                                        title="碳烤肋眼牛排 x1, 松露野菇燉飯 x2...">
+                                        碳烤肋眼牛排 x1, 松露野菇燉飯 x2...
+                                        <div class="text-xs text-gray-400 mt-0.5">共 4 項餐點</div>
+                                    </td>
+                                    <td class="p-4 font-mono font-bold text-gray-800">NT$ 1,720</td>
+                                    <td class="p-4">
+                                        <span
+                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-bold border border-red-100 animate-pulse">
+                                            <i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> 廚房製作中
+                                        </span>
+                                    </td>
+                                    <td class="p-4 text-right pr-6">
+                                        <button
+                                            class="text-emerald-600 font-bold hover:text-white bg-emerald-50 hover:bg-emerald-500 px-4 py-2 rounded-xl transition-all text-xs border border-emerald-100 hover:border-emerald-500 shadow-sm">
+                                            查看明細
+                                        </button>
+                                    </td>
+                                </tr>
+
+                                <tr class="hover:bg-gray-50 transition-colors opacity-75">
+                                    <td class="p-4 pl-6">
+                                        <div class="font-mono text-gray-600 font-bold mb-0.5">#ORD-0041</div>
+                                        <div class="text-xs text-gray-400 font-medium">今日 15:10</div>
+                                    </td>
+                                    <td class="p-4">
+                                        <div
+                                            class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gray-100 text-gray-500 font-black border border-gray-200">
+                                            8</div>
+                                    </td>
+                                    <td
+                                        class="p-4 max-w-[200px] truncate text-gray-500 line-through decoration-gray-300">
+                                        青醬雞肉義大利麵 x1, 紅茶 x1
+                                        <div class="text-xs text-gray-400 mt-0.5 no-underline">共 2 項餐點</div>
+                                    </td>
+                                    <td class="p-4 font-mono font-bold text-gray-500">NT$ 320</td>
+                                    <td class="p-4">
+                                        <span
+                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-500 text-xs font-bold border border-gray-200">
+                                            <i data-lucide="check" class="w-3.5 h-3.5"></i> 已出餐
+                                        </span>
+                                    </td>
+                                    <td class="p-4 text-right pr-6">
+                                        <button
+                                            class="text-gray-500 font-bold hover:text-gray-700 bg-white hover:bg-gray-100 px-4 py-2 rounded-xl transition-all text-xs border border-gray-200 shadow-sm">
+                                            查看明細
+                                        </button>
+                                    </td>
+                                </tr>
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <div id="section-menu"
+                class="content-section hidden max-w-6xl mx-auto h-full flex flex-col items-center justify-center text-gray-400">
+                <i data-lucide="book-open" class="w-16 h-16 mb-4 text-gray-300"></i>
+                <h2 class="text-xl font-bold text-gray-600 mb-2">菜單管理介面</h2>
+                <p class="text-sm text-gray-500">分類管理、新增餐點、庫存上下架設定區塊。</p>
+            </div>
+
+            <div id="section-tables"
+                class="content-section hidden max-w-6xl mx-auto h-full flex flex-col items-center justify-center text-gray-400">
+                <i data-lucide="grid" class="w-16 h-16 mb-4 text-gray-300"></i>
+                <h2 class="text-xl font-bold text-gray-600 mb-2">桌號與 QR Code 管理</h2>
+                <p class="text-sm text-gray-500">檢視各桌狀態、重新列印專屬 QR Code。</p>
+            </div>
+
+            <div id="section-reports"
+                class="content-section hidden max-w-6xl mx-auto h-full flex flex-col items-center justify-center text-gray-400">
+                <i data-lucide="pie-chart" class="w-16 h-16 mb-4 text-gray-300"></i>
+                <h2 class="text-xl font-bold text-gray-600 mb-2">營收與數據報表</h2>
+                <p class="text-sm text-gray-500">視覺化圖表、熱銷排行、月結算匯出功能即將上線。</p>
+            </div>
+
+            <div id="section-employees"
+                class="content-section hidden max-w-6xl mx-auto h-full flex flex-col items-center justify-center text-gray-400">
+                <i data-lucide="users" class="w-16 h-16 mb-4 text-gray-300"></i>
+                <h2 class="text-xl font-bold text-gray-600 mb-2">員工權限管理</h2>
+                <p class="text-sm text-gray-500">新增店員帳號、設定結帳與退單權限。</p>
+            </div>
+
+            <div id="section-settings"
+                class="content-section hidden max-w-6xl mx-auto h-full flex flex-col items-center justify-center text-gray-400">
+                <i data-lucide="settings" class="w-16 h-16 mb-4 text-gray-300"></i>
+                <h2 class="text-xl font-bold text-gray-600 mb-2">系統與店家設定</h2>
+                <p class="text-sm text-gray-500">修改營業時間、基本資料與列印設備連線設定。</p>
+            </div>
+
+            <div id="section-help"
+                class="content-section hidden max-w-6xl mx-auto h-full flex flex-col items-center justify-center text-gray-400">
+                <i data-lucide="help-circle" class="w-16 h-16 mb-4 text-gray-300"></i>
+                <h2 class="text-xl font-bold text-gray-600 mb-2">幫助中心與客服</h2>
+                <p class="text-sm text-gray-500">操作手冊、常見問答集與聯絡技術支援。</p>
+            </div>
+
+        </div>
+    </main>
+    <script src="./js/dashboard.js"></script>
+</body>
+
+</html>
