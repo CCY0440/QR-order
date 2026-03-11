@@ -277,68 +277,120 @@
             lucide.createIcons();
         }
 
-        // --- 🌟 最終存檔邏輯 (重點) ---
         if (btnNext) {
             btnNext.onclick = async () => {
-                // 1. 儲存基本資訊
-                if (currentStep === 1) {
-                    await supabase.from('stores').update({
-                        name: document.getElementById('setup-store-name').value,
-                        phone: document.getElementById('setup-phone').value,
-                        address: document.getElementById('setup-address').value,
-                        description: document.getElementById('setup-description').value,
-                        logo_url: uploadedLogoUrl
-                    }).eq('owner_id', currentUser.id);
-                }
+                try {
+                    // --- 步驟 1：儲存店家基本資訊 ---
+                    if (currentStep === 1) {
+                        const { error } = await supabase.from('stores').update({
+                            name: document.getElementById('setup-store-name').value,
+                            phone: document.getElementById('setup-phone').value,
+                            address: document.getElementById('setup-address').value,
+                            description: document.getElementById('setup-description').value,
+                            logo_url: uploadedLogoUrl
+                        }).eq('owner_id', currentUser.id);
 
-                // 2. 儲存桌號
-                if (currentStep === 2) {
-                    const count = parseInt(tableCountInput.value) || 0;
-                    await supabase.from('tables').delete().eq('store_id', currentStoreId);
-                    const tablesToInsert = [];
-                    for (let i = 1; i <= count; i++) {
-                        tablesToInsert.push({ store_id: currentStoreId, table_name: `桌號 ${i}` });
+                        if (error) throw error; // 報錯就跳到 catch，不會往下走
                     }
-                    await supabase.from('tables').insert(tablesToInsert);
-                }
 
-                // 🌟【新加入：步驟 3 存檔菜單】
-                if (currentStep === 3) {
-                    if (tempMenuItems.length === 0) return alert('請至少新增一項菜品！');
+                    // --- 步驟 2：儲存桌號 ---
+                    if (currentStep === 2) {
+                        const count = parseInt(tableCountInput.value) || 0;
+                        // 確保有 storeId 才能操作
+                        if (!currentStoreId) throw new Error("找不到店家 ID，請重新整理頁面");
 
-                    // 🌟【新增這一步】：先刪除這家店舊有的分類 (會透過 CASCADE 自動刪掉產品)
-                    // 這樣就算老闆按返回再進來，也會是「整份重新覆蓋」，不會有重複菜單。
-                    await supabase.from('categories').delete().eq('store_id', currentStoreId);
+                        await supabase.from('tables').delete().eq('store_id', currentStoreId);
+                        const tablesToInsert = [];
+                        for (let i = 1; i <= count; i++) {
+                            tablesToInsert.push({ store_id: currentStoreId, table_name: `桌號 ${i}` });
+                        }
+                        const { error } = await supabase.from('tables').insert(tablesToInsert);
+                        if (error) throw error;
+                    }
 
-                    // A. 提取不重複分類並存入
-                    const uniqueCats = [...new Set(tempMenuItems.map(item => item.category))];
-                    const { data: createdCats, error: catErr } = await supabase
-                        .from('categories')
-                        .insert(uniqueCats.map(c => ({ store_id: currentStoreId, name: c })))
-                        .select();
+                    // --- 步驟 3：儲存菜單 (改為可選) ---
+                    // --- 🌟 步驟 3：菜單存檔（加強偵錯版） ---
+                    if (currentStep === 3) {
+                        console.log('📝 準備存檔，目前暫存清單：', tempMenuItems);
 
-                    if (catErr) return alert('分類建立失敗');
+                        if (tempMenuItems.length > 0) {
+                            // 0. 檢查 ID 是否存在
+                            if (!currentStoreId) {
+                                console.error('❌ 錯誤：找不到 currentStoreId');
+                                alert('系統遺失店家 ID，請重新整理頁面再試一次');
+                                return;
+                            }
 
-                    // B. 產品對應分類 ID 並存入
-                    const productsToInsert = tempMenuItems.map(item => {
-                        const catObj = createdCats.find(c => c.name === item.category);
-                        return {
-                            store_id: currentStoreId,
-                            category_id: catObj.id,
-                            name: item.name,
-                            price: item.price
-                        };
-                    });
-                    await supabase.from('products').insert(productsToInsert);
-                }
+                            try {
+                                // 1. 先清空舊有的分類（會連帶刪除產品）
+                                console.log('🔥 正在清理舊資料...');
+                                await supabase.from('categories').delete().eq('store_id', currentStoreId);
 
-                if (currentStep < totalSteps) {
-                    currentStep++;
-                    updateUI();
-                } else {
-                    // 全部完成
-                    await supabase.from('stores').update({ is_initialized: true }).eq('owner_id', currentUser.id);
-                    window.location.href = 'dashboard.html';
+                                // 2. 提取不重複分類
+                                const uniqueCats = [...new Set(tempMenuItems.map(item => item.category))];
+                                console.log('📂 準備建立分類：', uniqueCats);
+
+                                // 3. 建立分類並【務必】使用 .select() 取回 ID
+                                const { data: createdCats, error: catErr } = await supabase
+                                    .from('categories')
+                                    .insert(uniqueCats.map(c => ({
+                                        store_id: currentStoreId,
+                                        name: c
+                                    })))
+                                    .select(); // 👈 沒這行，後面就拿不到 ID
+
+                                if (catErr) throw catErr;
+                                console.log('✅ 分類建立成功：', createdCats);
+
+                                // 4. 產品對應分類 ID
+                                const productsToInsert = tempMenuItems.map(item => {
+                                    // 在剛建立成功的分類中找到對應的那一個
+                                    const catObj = createdCats.find(c => c.name === item.category);
+                                    return {
+                                        store_id: currentStoreId,
+                                        category_id: catObj ? catObj.id : null,
+                                        name: item.name,
+                                        price: item.price
+                                    };
+                                }).filter(p => p.category_id !== null); // 過濾掉沒對到分類的（防呆）
+
+                                console.log('📦 準備存入產品：', productsToInsert);
+
+                                // 5. 存入產品
+                                const { error: prodErr } = await supabase
+                                    .from('products')
+                                    .insert(productsToInsert);
+
+                                if (prodErr) throw prodErr;
+                                console.log('🎉 所有產品存檔成功！');
+
+                            } catch (error) {
+                                console.error('❌ 存檔過程出錯：', error);
+                                alert('存檔失敗：' + error.message);
+                                return; // 報錯就停止，不跳轉
+                            }
+                        }
+
+                        // 6. 最後標記初始化完成並跳轉
+                        console.log('🏁 標記初始化完成...');
+                        await supabase.from('stores')
+                            .update({ is_initialized: true })
+                            .eq('owner_id', currentUser.id);
+
+                        window.location.href = 'dashboard.html';
+                    }
+
+                    // 🌟 關鍵位子：這裡必須在所有 if (currentStep) 之外
+                    // 確保前面的存檔完成後，步驟一定會 +1 並更新 UI
+                    if (currentStep < totalSteps) {
+                        currentStep++;
+                        updateUI();
+                        console.log('🚀 前進到步驟：', currentStep);
+                    }
+
+                } catch (err) {
+                    console.error('❌ 按鈕執行失敗:', err);
+                    alert('發生錯誤：' + (err.message || '請檢查網路連線'));
                 }
             };
         }
