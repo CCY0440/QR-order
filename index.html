@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正在導引至您的餐廳...</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-50 flex items-center justify-center min-h-screen">
+
+    <div class="text-center">
+        <div
+            class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-emerald-500 border-t-transparent mb-4">
+        </div>
+        <p class="text-gray-500 font-medium">系統檢查中，請稍候...</p>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://xhvlwmcrgwskaforgxqd.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_nluuQ4-miY-nunLCYrvTrA_z577O8Pc';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        async function checkAccess() {
+            // 1. 檢查是否有登入
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (!user) {
+                // 沒登入就去登入頁
+                window.location.href = 'login.html';
+                return;
+            }
+
+            // 2. 檢查店家是否已經完成初始化 (is_initialized)
+            const { data: storeData } = await supabase
+                .from('stores')
+                .select('is_initialized')
+                .eq('owner_id', user.id)
+                .single();
+
+            if (storeData && storeData.is_initialized) {
+                // 設定過了，直接去後台
+                window.location.href = 'dashboard.html';
+            } else {
+                // 沒設定過，去引導頁
+                window.location.href = 'onboarding.html';
+            }
+        }
+
+        checkAccess();
+    </script>
+</body>
+
+</html>
