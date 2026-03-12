@@ -119,9 +119,12 @@
                                     class="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hidden hover:bg-red-600 transition-colors z-20">
                                     <i data-lucide="x" class="w-4 h-4"></i>
                                 </button>
-                                <div id="upload-placeholder" class="flex flex-col items-center">
-                                    <i data-lucide="image-plus" class="w-8 h-8 mb-2"></i>
-                                    <span class="text-sm font-medium">點擊上傳圖片</span>
+                                <div id="upload-placeholder" class="flex flex-col items-center pointer-events-none">
+                                    <i data-lucide="upload-cloud" class="w-8 h-8 text-emerald-500 mb-2"></i>
+                                    <span class="font-bold text-gray-700">上傳品牌 Logo</span>
+                                    <span
+                                        class="text-xs text-gray-400 mt-1 font-medium bg-gray-100 px-2 py-0.5 rounded-md">建議比例
+                                        1:1 (正方形)</span>
                                 </div>
                             </div>
                             <input type="file" id="logo-file-input" class="hidden" accept="image/*">
@@ -211,7 +214,8 @@
         </div>
 
     </div>
-    <script src="./js/onboarding.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/onboarding.js"></script>
 </body>
 
 </html>
