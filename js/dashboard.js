@@ -125,6 +125,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (headerTitle) headerTitle.textContent = newTitle;
             if (targetId === 'section-menu') loadMenu();
+            if (targetId === 'section-tables' && typeof window.loadTables === 'function') window.loadTables();
+            if (targetId === 'section-settings') loadSettings();
+            if (targetId === 'section-orders' && typeof window.loadOrders === 'function') window.loadOrders();
+            if (targetId === 'section-reports' && typeof window.loadReports === 'function') window.loadReports();
+            if (targetId === 'section-employees' && typeof window.loadStaff === 'function') window.loadStaff();
             if (window.innerWidth < 1024) toggleSidebar();
         });
     });
@@ -372,6 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inputProductName.value = '';
         inputProductPrice.value = '';
         selectProductCategory.value = '';
+        window._selectedCategoryId = '';
         inputProductDesc.value = '';
 
         // 恢復自訂選單外觀
@@ -432,8 +438,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const customOptions = customSelectOptions.querySelectorAll('button');
             customOptions.forEach(opt => {
                 opt.addEventListener('click', (e) => {
-                    // 同步到隱藏的真實 select
-                    selectProductCategory.value = e.target.getAttribute('data-value');
+                    const val = e.target.getAttribute('data-value');
+                    // 同步到隱藏的真實 select 並存到全域變數（兩種方式確保有效）
+                    selectProductCategory.value = val;
+                    window._selectedCategoryId = val;
 
                     // 更新畫面上顯示的文字
                     customSelectText.textContent = e.target.textContent;
@@ -523,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnSaveProduct.addEventListener('click', async () => {
             const name = inputProductName.value.trim();
             const price = parseInt(inputProductPrice.value);
-            const categoryId = selectProductCategory.value;
+            const categoryId = selectProductCategory.value || window._selectedCategoryId || '';
             const desc = inputProductDesc.value.trim();
 
             if (!name || isNaN(price) || !categoryId) return AppDialog.alert('請完整填寫名稱、價格與選擇分類！', 'warning');
@@ -586,5 +594,302 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             }
         });
+    }
+
+    // =============================================
+    // 載入店家資料（Header + 設定頁）
+    // =============================================
+    let currentStoreData = null;
+
+    async function loadStoreHeader() {
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        if (!user) return;
+
+        const { data: store } = await window.supabaseClient
+            .from('stores')
+            .select('id, name, phone, address, logo_url, is_open')
+            .eq('owner_id', user.id)
+            .single();
+
+        if (!store) return;
+        currentStoreData = store;
+
+        // 設定頁欄位
+        const nameEl = document.getElementById('setting-store-name');
+        const phoneEl = document.getElementById('setting-phone');
+        const addrEl = document.getElementById('setting-address');
+        const emailEl = document.getElementById('setting-email');
+        if (nameEl) nameEl.value = store.name || '';
+        if (phoneEl) phoneEl.value = store.phone || '';
+        if (addrEl) addrEl.value = store.address || '';
+        if (emailEl) emailEl.textContent = user.email || '';
+
+        // Logo 預覽
+        if (store.logo_url) {
+            const prev = document.getElementById('setting-logo-preview');
+            const icon = document.getElementById('logo-placeholder-icon');
+            if (prev) { prev.src = store.logo_url; prev.classList.remove('hidden'); }
+            if (icon) icon.classList.add('hidden');
+        }
+
+        // 側邊欄店名
+        const sidebarName = document.querySelector('#sidebar .font-bold.text-lg');
+        if (sidebarName) sidebarName.textContent = store.name || '我的餐廳';
+
+        // Toggle 狀態
+        updateToggleUI(store.is_open !== false);
+    }
+
+    function updateToggleUI(isOpen) {
+        const btn = document.getElementById('btn-toggle-open');
+        const dot = document.getElementById('toggle-dot');
+        const label = document.getElementById('toggle-label');
+        if (!btn) return;
+        btn.classList.remove('hidden');
+        if (isOpen) {
+            btn.className = 'hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200 font-bold text-sm bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100';
+            dot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+            label.textContent = '營業中';
+        } else {
+            btn.className = 'hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200 font-bold text-sm bg-gray-100 border-gray-200 text-gray-500 hover:bg-gray-200';
+            dot.className = 'w-2 h-2 rounded-full bg-gray-400';
+            label.textContent = '休息中';
+        }
+    }
+
+    // 切換營業狀態
+    document.getElementById('btn-toggle-open')?.addEventListener('click', async () => {
+        if (!currentStoreData) return;
+        const newState = currentStoreData.is_open === false ? true : false;
+        currentStoreData.is_open = newState;
+        updateToggleUI(newState);
+        await window.supabaseClient.from('stores').update({ is_open: newState }).eq('id', currentStoreData.id);
+    });
+
+    // 儲存基本資料
+    document.getElementById('btn-save-store-info')?.addEventListener('click', async () => {
+        if (!currentStoreData) return;
+        const btn = document.getElementById('btn-save-store-info');
+        const name = document.getElementById('setting-store-name')?.value.trim();
+        const phone = document.getElementById('setting-phone')?.value.trim();
+        const address = document.getElementById('setting-address')?.value.trim();
+        if (!name) { AppDialog.alert('店家名稱不能為空', 'warning'); return; }
+
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin inline mr-1"></i> 儲存中...';
+        btn.disabled = true;
+        lucide.createIcons();
+
+        const { error } = await window.supabaseClient.from('stores').update({ name, phone, address }).eq('id', currentStoreData.id);
+        if (error) {
+            AppDialog.alert('儲存失敗：' + error.message, 'danger');
+            btn.innerHTML = originalHtml; btn.disabled = false; lucide.createIcons();
+        } else {
+            currentStoreData.name = name;
+            const sidebarName = document.querySelector('#sidebar .font-bold.text-lg');
+            if (sidebarName) sidebarName.textContent = name;
+            btn.innerHTML = '<i data-lucide="check" class="w-4 h-4 inline mr-1"></i> 已儲存！';
+            lucide.createIcons();
+            checkSetupNotifications();
+            setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; lucide.createIcons(); }, 1800);
+        }
+    });
+
+    // Logo 上傳
+    document.getElementById('setting-logo-file')?.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file || !currentStoreData) return;
+        const statusEl = document.getElementById('logo-upload-status');
+        if (statusEl) statusEl.textContent = '上傳中...';
+
+        const ext = file.name.split('.').pop();
+        const path = `${currentStoreData.id}/logo.${ext}`;
+        const { error: upErr } = await window.supabaseClient.storage.from('store-logos').upload(path, file, { upsert: true });
+        if (upErr) { if (statusEl) statusEl.textContent = '上傳失敗：' + upErr.message; return; }
+
+        const { data: { publicUrl } } = window.supabaseClient.storage.from('store-logos').getPublicUrl(path);
+        await window.supabaseClient.from('stores').update({ logo_url: publicUrl }).eq('id', currentStoreData.id);
+        currentStoreData.logo_url = publicUrl;
+
+        const prev = document.getElementById('setting-logo-preview');
+        const icon = document.getElementById('logo-placeholder-icon');
+        if (prev) { prev.src = publicUrl; prev.classList.remove('hidden'); }
+        if (icon) icon.classList.add('hidden');
+        if (statusEl) statusEl.textContent = '✓ 上傳成功';
+        checkSetupNotifications();
+    });
+
+    // 登出
+    document.getElementById('btn-logout')?.addEventListener('click', async () => {
+        const ok = await AppDialog.confirm('確定要登出系統嗎？', 'danger', '登出確認');
+        if (!ok) return;
+        await window.supabaseClient.auth.signOut();
+        window.location.href = 'login.html';
+    });
+
+    // 側邊欄登出按鈕
+    document.querySelector('#sidebar .p-4 button')?.addEventListener('click', async () => {
+        const ok = await AppDialog.confirm('確定要登出系統嗎？', 'danger', '登出確認');
+        if (!ok) return;
+        await window.supabaseClient.auth.signOut();
+        window.location.href = 'login.html';
+    });
+
+    // 初始化
+    loadStoreHeader();
+
+    // =============================================
+    async function checkSetupNotifications() {
+        const storeId = await getStoreId();
+        if (!storeId) return;
+
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        const { data: store } = await window.supabaseClient
+            .from('stores').select('name, phone, address, logo_url').eq('id', storeId).single();
+        const { data: products } = await window.supabaseClient
+            .from('products').select('id').eq('store_id', storeId).limit(1);
+        const { data: tables } = await window.supabaseClient
+            .from('tables').select('id').eq('store_id', storeId).limit(1);
+
+        const items = [];
+
+        if (store) {
+            if (!store.phone || !store.address) items.push({
+                icon: 'store',
+                title: '完善店家基本資料',
+                desc: '電話與地址尚未填寫',
+                target: 'section-settings',
+                targetTitle: '店家設定'
+            });
+            if (!store.logo_url) items.push({
+                icon: 'image',
+                title: '上傳品牌 Logo',
+                desc: 'Logo 有助提升顧客信任感',
+                target: 'section-settings',
+                targetTitle: '店家設定'
+            });
+        }
+        if (!products || products.length === 0) items.push({
+            icon: 'utensils',
+            title: '新增第一道餐點',
+            desc: '菜單目前是空的，顧客無法點餐',
+            target: 'section-menu',
+            targetTitle: '菜單管理'
+        });
+        if (!tables || tables.length === 0) items.push({
+            icon: 'qr-code',
+            title: '建立桌號與 QR Code',
+            desc: '還沒有任何桌號，顧客無法掃碼',
+            target: 'section-tables',
+            targetTitle: '桌號管理'
+        });
+
+        // 付款方式：若從未造訪過設定頁則提示
+        const hasSeenPaymentSettings = localStorage.getItem('seen-payment-settings');
+        if (!hasSeenPaymentSettings) items.push({
+            icon: 'banknote',
+            title: '確認付款方式設定',
+            desc: '請至設定頁確認您的收款方式',
+            target: 'section-settings',
+            targetTitle: '店家設定'
+        });
+
+        const bellDot = document.getElementById('bell-dot');
+        const notifCount = document.getElementById('notif-count');
+        const notifList = document.getElementById('notif-list');
+        const notifEmpty = document.getElementById('notif-empty');
+
+        if (items.length > 0) {
+            bellDot?.classList.remove('hidden');
+            if (notifCount) notifCount.textContent = `${items.length} 項`;
+            if (notifList) {
+                notifList.innerHTML = items.map(item => `
+                    <button class="notif-item w-full text-left px-5 py-4 hover:bg-emerald-50 transition-colors flex items-start gap-3"
+                        data-target="${item.target}" data-title="${item.targetTitle}">
+                        <div class="w-9 h-9 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+                            <i data-lucide="${item.icon}" class="w-4 h-4 text-amber-600"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-bold text-gray-800 text-sm">${item.title}</p>
+                            <p class="text-xs text-gray-400 mt-0.5">${item.desc}</p>
+                        </div>
+                        <i data-lucide="arrow-right" class="w-4 h-4 text-gray-300 shrink-0 mt-1"></i>
+                    </button>`).join('');
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                // 點擊通知項目 → 跳到對應頁面
+                notifList.querySelectorAll('.notif-item').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const targetId = btn.dataset.target;
+                        const targetTitle = btn.dataset.title;
+                        document.querySelector(`[data-target="${targetId}"]`)?.click();
+                        toggleNotifPanel(false);
+                    });
+                });
+            }
+            notifEmpty?.classList.add('hidden');
+        } else {
+            bellDot?.classList.add('hidden');
+            if (notifCount) notifCount.textContent = '';
+            if (notifList) notifList.innerHTML = '';
+            notifEmpty?.classList.remove('hidden');
+        }
+    }
+
+    function toggleNotifPanel(force) {
+        const panel = document.getElementById('notification-panel');
+        if (!panel) return;
+        const isHidden = panel.classList.contains('hidden');
+        const show = force !== undefined ? force : isHidden;
+        panel.classList.toggle('hidden', !show);
+    }
+
+    document.getElementById('btn-bell')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleNotifPanel();
+    });
+    document.addEventListener('click', () => toggleNotifPanel(false));
+    document.getElementById('notification-panel')?.addEventListener('click', e => e.stopPropagation());
+
+    // 初始化時檢查通知
+    checkSetupNotifications();
+
+    // =============================================
+    // 設定頁載入（目前只有付款，未來可擴充）
+    // =============================================
+    function loadSettings() {
+        // 記錄已造訪過設定頁，讓鈴鐺的付款提示消失
+        if (!localStorage.getItem('seen-payment-settings')) {
+            localStorage.setItem('seen-payment-settings', '1');
+            checkSetupNotifications(); // 重新計算通知數量
+        }
+    }
+
+    // =============================================
+    // 店員連結
+    // =============================================
+    async function loadStaffLink() {
+        const storeId = await getStoreId();
+        if (!storeId) return;
+        const base = location.origin + location.pathname.replace('dashboard.html', '');
+        const link = `${base}staff.html?store_id=${storeId}`;
+        const textEl = document.getElementById('staff-link-text');
+        const openBtn = document.getElementById('btn-open-staff-link');
+        if (textEl) textEl.textContent = link;
+        if (openBtn) openBtn.href = link;
+        document.getElementById('btn-copy-staff-link')?.addEventListener('click', async () => {
+            await navigator.clipboard.writeText(link);
+            const btn = document.getElementById('btn-copy-staff-link');
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="check" class="w-4 h-4 inline mr-1"></i> 已複製！';
+            lucide.createIcons();
+            setTimeout(() => { btn.innerHTML = orig; lucide.createIcons(); }, 2000);
+        });
+    }
+
+    // 切換到店員管理頁時載入連結
+    if (typeof window._staffLinkLoaded === 'undefined') {
+        window._staffLinkLoaded = true;
+        loadStaffLink();
     }
 });
