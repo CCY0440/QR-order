@@ -141,25 +141,25 @@
 
             <div id="step-content-2" class="fade-in absolute inset-0 p-12 h-max max-w-5xl mx-auto hidden">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
-                    <div class="lg:col-span-1 space-y-6">
+                    <div class="lg:col-span-1 space-y-5">
                         <div class="bg-gray-50 p-6 rounded-2xl border border-gray-100">
                             <h3 class="font-bold text-gray-800 text-lg mb-2">桌數快速建立</h3>
-                            <p class="text-sm text-gray-500 mb-5">請輸入您的餐廳總桌數，系統將為您一鍵生成 QR Code。</p>
-                            <label class="block text-sm font-bold text-gray-700 mb-2">生成數量</label>
+                            <p class="text-sm text-gray-500 mb-5">請輸入您的餐廳總桌數，系統將自動建立「桌號1」、「桌號2」…</p>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">桌數</label>
                             <input type="number" id="setup-table-count" value="10" min="1" max="100"
-                                class="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold text-lg mb-4">
+                                class="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold text-lg">
+                            <p class="text-xs text-gray-400 mt-2">最多一次建立 100 桌</p>
                         </div>
                     </div>
                     <div class="lg:col-span-2">
                         <div class="flex justify-between items-end mb-4">
                             <h3 class="font-bold text-gray-800 text-lg">QR Code 預覽</h3>
-                            <button
+                            <button id="btn-download-zip"
                                 class="text-emerald-600 font-bold bg-emerald-50 px-4 py-2 rounded-lg hover:bg-emerald-100 transition-colors flex items-center gap-2 text-sm border border-emerald-200">
                                 <i data-lucide="download-cloud" class="w-4 h-4"></i> 批次下載 ZIP
                             </button>
                         </div>
-                        <div id="table-preview-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        </div>
+                        <div id="table-preview-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
                     </div>
                 </div>
             </div>
