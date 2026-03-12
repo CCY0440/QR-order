@@ -49,7 +49,7 @@
 
         const { data: orders, error } = await window.supabaseClient
             .from('orders')
-            .select('*, order_items(product_name, quantity, subtotal)')
+            .select('id, store_id, table_name, status, total_price, payment_method, is_paid, note, daily_number, created_at, order_items(product_name, quantity, subtotal)')
             .eq('store_id', storeId)
             .gte('created_at', new Date(today.setHours(0, 0, 0, 0)).toISOString())
             .order('created_at', { ascending: false });
@@ -303,33 +303,45 @@
         if (realtimeChannel) realtimeChannel.unsubscribe();
 
         realtimeChannel = window.supabaseClient
-            .channel('orders-realtime')
+            .channel('orders-realtime-' + storeId)
             .on('postgres_changes', {
                 event: 'INSERT',
                 schema: 'public',
                 table: 'orders',
                 filter: `store_id=eq.${storeId}`
             }, async (payload) => {
-                // 撈完整資料（含 order_items）
                 const { data: newOrder } = await window.supabaseClient
                     .from('orders')
-                    .select('*, order_items(product_name, quantity, subtotal)')
+                    .select('id, store_id, table_name, status, total_price, payment_method, is_paid, note, daily_number, created_at, order_items(product_name, quantity, subtotal)')
                     .eq('id', payload.new.id)
                     .single();
                 if (newOrder) {
                     allOrders.unshift(newOrder);
                     renderOrders();
 
-                    // 顯示新訂單提示
+                    // 訂單動態徽章
                     const badge = document.getElementById('orders-new-badge');
                     badge?.classList.remove('hidden');
                     setTimeout(() => badge?.classList.add('hidden'), 5000);
 
-                    // 側邊欄閃爍提示
+                    // 側邊欄閃爍
                     const navOrders = document.querySelector('[data-target="section-orders"]');
                     navOrders?.classList.add('text-red-500');
                     setTimeout(() => navOrders?.classList.remove('text-red-500'), 5000);
+
+                    // 通知鈴鐺
+                    if (typeof window.notifyNewOrder === 'function') window.notifyNewOrder(newOrder);
                 }
+            })
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'orders',
+                filter: `store_id=eq.${storeId}`
+            }, (payload) => {
+                const idx = allOrders.findIndex(o => o.id === payload.new.id);
+                if (idx !== -1) allOrders[idx] = { ...allOrders[idx], ...payload.new };
+                renderOrders();
             })
             .subscribe();
     }
