@@ -25,7 +25,7 @@
 
         const { data: orders } = await window.supabaseClient
             .from('orders')
-            .select('*, order_items(product_name, quantity)')
+            .select('id, store_id, status, total_price, payment_method, is_paid, created_at, order_items(product_name, quantity)')
             .eq('store_id', id)
             .gte('created_at', start.toISOString())
             .neq('status', 'cancelled');
