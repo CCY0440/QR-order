@@ -37,7 +37,7 @@
 
         const { data: orders } = await window.supabaseClient
             .from('orders')
-            .select('*, order_items(product_name, quantity, subtotal)')
+            .select('id, store_id, table_name, status, total_price, payment_method, is_paid, note, daily_number, created_at, order_items(product_name, quantity, subtotal)')
             .eq('store_id', id)
             .gte('created_at', todayStart.toISOString())
             .order('created_at', { ascending: false });
@@ -137,7 +137,9 @@
                             ${order.note ? `<span class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-0.5 font-medium">📝 ${order.note}</span>` : ''}
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
-                            <span class="text-xs font-bold text-gray-400">${items.reduce((s, i) => s + i.quantity, 0)} 項餐點</span>
+                            <span class="text-xs font-bold text-gray-400">${items.length} 項餐點</span>
+                            <span class="text-xs text-gray-300">·</span>
+                            <span class="text-xs font-bold text-gray-400">×${items.reduce((s, i) => s + i.quantity, 0)}</span>
                             <span class="font-black text-gray-800 text-sm">NT$ ${order.total_price.toLocaleString()}</span>
                         </div>
                     </div>
@@ -173,26 +175,35 @@
 
     function subscribeRealtime(id) {
         window.supabaseClient
-            .channel('overview-realtime')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `store_id=eq.${id}` },
+            .channel('overview-realtime-' + id)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' },
                 async (payload) => {
-                    if (payload.eventType === 'INSERT') {
-                        // 重新撈含 order_items 的完整資料
-                        const { data: full } = await window.supabaseClient
-                            .from('orders')
-                            .select('*, order_items(product_name, quantity, subtotal)')
-                            .eq('id', payload.new.id)
-                            .single();
-                        if (full) todayOrders.unshift(full);
-                    } else if (payload.eventType === 'UPDATE') {
-                        const idx = todayOrders.findIndex(o => o.id === payload.new.id);
-                        if (idx !== -1) todayOrders[idx] = { ...todayOrders[idx], ...payload.new };
-                    }
+                    if (payload.new.store_id !== id) return;
+                    const { data: full } = await window.supabaseClient
+                        .from('orders')
+                        .select('id, store_id, table_name, status, total_price, payment_method, is_paid, note, daily_number, created_at, order_items(product_name, quantity, subtotal)')
+                        .eq('id', payload.new.id)
+                        .single();
+                    if (full) todayOrders.unshift(full);
                     renderStats();
                     renderOrdersList();
                 })
-            .subscribe();
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' },
+                (payload) => {
+                    if (payload.new.store_id !== id) return;
+                    const idx = todayOrders.findIndex(o => o.id === payload.new.id);
+                    if (idx !== -1) todayOrders[idx] = { ...todayOrders[idx], ...payload.new };
+                    renderStats();
+                    renderOrdersList();
+                })
+            .subscribe((status) => {
+                console.log('Overview Realtime status:', status);
+            });
     }
 
-    loadOverview();
+    window.loadOverview = loadOverview;
+    // Auto-run when section is already visible on page load
+    if (document.getElementById('section-overview') && !document.getElementById('section-overview').classList.contains('hidden')) {
+        loadOverview();
+    }
 })();
