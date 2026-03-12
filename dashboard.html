@@ -33,6 +33,58 @@
         }
 
         /* 內容切換的淡入動畫 */
+        .order-filter-btn {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            border-radius: 12px;
+            border: 1.5px solid #e5e7eb;
+            color: #6b7280;
+            background: white;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .order-filter-btn:hover {
+            border-color: #10b981;
+            color: #059669;
+            background: #ecfdf5;
+        }
+
+        .order-filter-btn.active {
+            border-color: #10b981;
+            color: #059669;
+            background: #ecfdf5;
+        }
+
+        .report-period-btn {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 16px;
+            font-size: 13px;
+            font-weight: 700;
+            border-radius: 10px;
+            border: 1.5px solid #e5e7eb;
+            color: #6b7280;
+            background: white;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .report-period-btn:hover {
+            border-color: #10b981;
+            color: #059669;
+            background: #ecfdf5;
+        }
+
+        .report-period-btn.active {
+            border-color: #10b981;
+            color: #059669;
+            background: #ecfdf5;
+        }
+
         .fade-in {
             animation: fadeIn 0.3s ease-out forwards;
         }
@@ -128,18 +180,43 @@
                 <h1 id="header-title" class="font-bold text-gray-800 text-lg hidden sm:block">總覽大廳</h1>
             </div>
 
-            <div class="flex items-center gap-4">
-                <p class="text-sm font-medium text-gray-500 hidden md:block">營業中</p>
+            <div class="flex items-center gap-3 relative">
+
+                <!-- 營業狀態 Toggle -->
+                <button id="btn-toggle-open"
+                    class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200 font-bold text-sm"
+                    title="點擊切換營業狀態">
+                    <span id="toggle-dot" class="w-2 h-2 rounded-full transition-colors"></span>
+                    <span id="toggle-label">載入中</span>
+                </button>
+
                 <div class="w-px h-6 bg-gray-200 hidden md:block"></div>
-                <button
+
+                <!-- 鈴鐺 -->
+                <button id="btn-bell"
                     class="relative p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors">
                     <i data-lucide="bell" class="w-5 h-5"></i>
-                    <span
-                        class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 border-2 border-white rounded-full"></span>
+                    <span id="bell-dot"
+                        class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 border-2 border-white rounded-full hidden"></span>
                 </button>
-                <div
-                    class="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 border-2 border-white shadow-sm cursor-pointer">
+
+                <!-- 通知下拉面板 -->
+                <div id="notification-panel"
+                    class="hidden absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
+                    <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                        <h3 class="font-bold text-gray-800 flex items-center gap-2">
+                            <i data-lucide="bell" class="w-4 h-4 text-emerald-500"></i> 待完成設定
+                        </h3>
+                        <span id="notif-count"
+                            class="text-xs font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full"></span>
+                    </div>
+                    <div id="notif-list" class="divide-y divide-gray-50 max-h-72 overflow-y-auto"></div>
+                    <div id="notif-empty" class="hidden px-5 py-8 text-center text-gray-400">
+                        <i data-lucide="check-circle-2" class="w-10 h-10 mx-auto mb-2 text-emerald-400"></i>
+                        <p class="font-bold text-sm text-gray-600">所有設定都完成了！</p>
+                    </div>
                 </div>
+
             </div>
         </header>
 
@@ -148,184 +225,106 @@
             <div id="section-overview" class="content-section max-w-6xl mx-auto space-y-6 lg:space-y-8 fade-in">
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-6">
                     <div
-                        class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative overflow-hidden group">
-                        <span class="text-sm font-bold text-gray-500 mb-1 z-10">今日營業額</span>
-                        <div class="flex items-baseline gap-1 z-10">
+                        class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative overflow-hidden">
+                        <span class="text-sm font-bold text-gray-500 mb-1">今日營業額</span>
+                        <div class="flex items-baseline gap-1">
                             <span class="text-lg font-bold text-gray-700">NT$</span>
-                            <span class="text-3xl font-bold text-gray-800 tracking-tight">12,480</span>
+                            <span id="ov-revenue" class="text-3xl font-bold text-gray-800 tracking-tight">—</span>
                         </div>
                     </div>
                     <div
-                        class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative overflow-hidden group">
-                        <span class="text-sm font-bold text-gray-500 mb-1 z-10">今日完成訂單</span>
-                        <div class="flex items-baseline gap-1 z-10">
-                            <span class="text-3xl font-bold text-gray-800 tracking-tight">36</span>
+                        class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative overflow-hidden">
+                        <span class="text-sm font-bold text-gray-500 mb-1">今日完成訂單</span>
+                        <div class="flex items-baseline gap-1">
+                            <span id="ov-completed" class="text-3xl font-bold text-gray-800 tracking-tight">—</span>
                             <span class="text-sm font-bold text-gray-500">筆</span>
                         </div>
                     </div>
-                    <div
-                        class="bg-red-50 border border-red-100 p-5 rounded-2xl shadow-sm flex flex-col relative overflow-hidden">
-                        <span class="text-sm font-bold text-red-600 mb-1 z-10 flex items-center gap-1"><i
-                                data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> 廚房待製作</span>
-                        <div class="flex items-baseline gap-1 z-10">
-                            <span class="text-3xl font-bold text-red-600 tracking-tight">3</span>
-                            <span class="text-sm font-bold text-red-500">筆</span>
+                    <div id="ov-pending-card"
+                        class="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm flex flex-col relative overflow-hidden transition-colors duration-300">
+                        <span class="text-sm font-bold mb-1 flex items-center gap-1" id="ov-pending-label">
+                            <i data-lucide="clock" class="w-3.5 h-3.5"></i> 廚房待製作
+                        </span>
+                        <div class="flex items-baseline gap-1">
+                            <span id="ov-pending" class="text-3xl font-bold tracking-tight">—</span>
+                            <span class="text-sm font-bold">筆</span>
                         </div>
                     </div>
                     <div
-                        class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative overflow-hidden group">
-                        <span class="text-sm font-bold text-gray-500 mb-1 z-10">目前入座桌數</span>
-                        <div class="flex items-baseline gap-1 z-10">
-                            <span class="text-3xl font-bold text-gray-800 tracking-tight">5</span>
-                            <span class="text-sm font-bold text-gray-500">/ 15 桌</span>
+                        class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative overflow-hidden">
+                        <span class="text-sm font-bold text-gray-500 mb-1">今日訂單數</span>
+                        <div class="flex items-baseline gap-1">
+                            <span id="ov-total-orders" class="text-3xl font-bold text-gray-800 tracking-tight">—</span>
+                            <span class="text-sm font-bold text-gray-500">筆</span>
                         </div>
                     </div>
                 </div>
 
                 <div>
-                    <h3 class="font-bold text-gray-800 text-lg mb-4">即時訂單動態</h3>
-                    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-                        <div class="divide-y divide-gray-100">
-                            <div
-                                class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-50 transition-colors">
-                                <div class="flex items-start sm:items-center gap-4">
-                                    <div
-                                        class="w-12 h-12 bg-red-100 text-red-600 rounded-xl flex flex-col items-center justify-center shrink-0">
-                                        <span class="text-[10px] font-bold">桌號</span>
-                                        <span class="text-lg font-black leading-none mt-0.5">3</span>
-                                    </div>
-                                    <div>
-                                        <div class="flex items-center gap-2 mb-1">
-                                            <span class="font-bold text-gray-800">碳烤肋眼牛排 x1, 松露野菇燉飯 x2</span>
-                                        </div>
-                                        <div class="text-xs font-medium text-gray-500">15:28 下單 • NT$ 1,720</div>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-2 shrink-0">
-                                    <span
-                                        class="px-3 py-1.5 bg-red-50 text-red-600 border border-red-100 rounded-lg text-xs font-bold animate-pulse">製作中</span>
-                                    <button
-                                        class="px-4 py-1.5 bg-gray-800 text-white rounded-lg text-xs font-bold hover:bg-gray-900 transition-colors">完成出餐</button>
-                                </div>
+                    <h3 class="font-bold text-gray-800 text-lg mb-4 flex items-center gap-2">
+                        即時訂單動態
+                        <span id="ov-realtime-dot" class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+                    </h3>
+                    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden min-h-[80px]">
+                        <div id="ov-orders-list" class="divide-y divide-gray-50">
+                            <div class="p-8 text-center text-gray-300">
+                                <i data-lucide="loader" class="w-6 h-6 mx-auto animate-spin"></i>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div id="section-orders" class="content-section hidden max-w-6xl mx-auto space-y-6 fade-in">
+            <div id="section-orders" class="content-section hidden max-w-6xl mx-auto space-y-5 fade-in">
 
+                <!-- 頂部工具列 -->
                 <div
-                    class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-
-                    <div
-                        class="flex space-x-1 bg-gray-50 p-1.5 rounded-xl border border-gray-100 w-full sm:w-auto overflow-x-auto hide-scroll">
-                        <button
-                            class="order-tab active px-5 py-2 text-sm font-bold bg-white text-emerald-600 rounded-lg shadow-sm transition-all whitespace-nowrap"
-                            data-status="all">全部訂單</button>
-                        <button
-                            class="order-tab px-5 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all whitespace-nowrap"
-                            data-status="pending">待處理 (3)</button>
-                        <button
-                            class="order-tab px-5 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all whitespace-nowrap"
-                            data-status="completed">已出餐</button>
+                    class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                            訂單管理
+                            <span id="orders-new-badge"
+                                class="hidden text-xs font-black bg-red-500 text-white px-2 py-0.5 rounded-full animate-pulse">有新訂單</span>
+                        </h2>
+                        <p class="text-sm text-gray-500 mt-0.5" id="orders-date-label"></p>
                     </div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button class="order-filter-btn active" data-status="all">全部</button>
+                        <button class="order-filter-btn" data-status="pending">待確認</button>
+                        <button class="order-filter-btn" data-status="confirmed">已確認</button>
+                        <button class="order-filter-btn" data-status="preparing">製作中</button>
+                        <button class="order-filter-btn" data-status="ready">可取餐</button>
+                        <button class="order-filter-btn" data-status="completed">已完成</button>
+                    </div>
+                </div>
 
-                    <div class="flex items-center gap-3 w-full sm:w-auto">
-                        <div class="relative w-full sm:w-64">
-                            <i data-lucide="search"
-                                class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
-                            <input type="text" placeholder="搜尋桌號或訂單編號..."
-                                class="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all">
-                        </div>
-                        <button
-                            class="p-2.5 bg-gray-50 border border-gray-200 text-gray-500 rounded-xl hover:bg-gray-100 hover:text-emerald-600 transition-colors shrink-0">
-                            <i data-lucide="calendar" class="w-5 h-5"></i>
+                <div id="orders-loading" class="text-center py-20 text-gray-400">
+                    <i data-lucide="loader" class="w-8 h-8 mx-auto animate-spin text-gray-300"></i>
+                </div>
+                <div id="orders-list" class="space-y-3 hidden"></div>
+                <div id="orders-empty" class="hidden bg-white rounded-2xl border border-gray-100 py-20 text-center">
+                    <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-3 text-gray-200"></i>
+                    <p class="font-bold text-gray-500">目前沒有訂單</p>
+                </div>
+            </div>
+
+            <!-- 訂單明細 Modal -->
+            <div id="modal-order-detail"
+                class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300">
+                <div id="modal-order-detail-content"
+                    class="bg-white w-full max-w-md rounded-[24px] shadow-2xl overflow-hidden transform scale-95 opacity-0 transition-all duration-300 max-h-[90vh] flex flex-col">
+                    <div
+                        class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+                        <h3 id="detail-title" class="font-black text-gray-800 text-lg"></h3>
+                        <button id="btn-close-detail"
+                            class="text-gray-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors">
+                            <i data-lucide="x" class="w-5 h-5"></i>
                         </button>
                     </div>
+                    <div id="detail-body" class="overflow-y-auto flex-1 p-6 space-y-4"></div>
+                    <div id="detail-footer"
+                        class="px-6 py-4 border-t border-gray-100 bg-gray-50 flex gap-3 shrink-0 flex-wrap"></div>
                 </div>
-
-                <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse min-w-[800px]">
-                            <thead>
-                                <tr
-                                    class="bg-gray-50/80 border-b border-gray-100 text-[13px] font-bold text-gray-500 tracking-wider">
-                                    <th class="p-4 pl-6 font-medium">訂單編號 / 時間</th>
-                                    <th class="p-4 font-medium">桌號</th>
-                                    <th class="p-4 font-medium">餐點摘要</th>
-                                    <th class="p-4 font-medium">總金額</th>
-                                    <th class="p-4 font-medium">狀態</th>
-                                    <th class="p-4 text-right pr-6 font-medium">操作</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100 text-sm">
-
-                                <tr class="hover:bg-emerald-50/30 transition-colors group">
-                                    <td class="p-4 pl-6">
-                                        <div class="font-mono text-gray-800 font-bold mb-0.5">#ORD-0042</div>
-                                        <div class="text-xs text-gray-400 font-medium">今日 15:28</div>
-                                    </td>
-                                    <td class="p-4">
-                                        <div
-                                            class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 font-black border border-emerald-100 shadow-sm">
-                                            3</div>
-                                    </td>
-                                    <td class="p-4 max-w-[200px] truncate text-gray-600 font-medium"
-                                        title="碳烤肋眼牛排 x1, 松露野菇燉飯 x2...">
-                                        碳烤肋眼牛排 x1, 松露野菇燉飯 x2...
-                                        <div class="text-xs text-gray-400 mt-0.5">共 4 項餐點</div>
-                                    </td>
-                                    <td class="p-4 font-mono font-bold text-gray-800">NT$ 1,720</td>
-                                    <td class="p-4">
-                                        <span
-                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-bold border border-red-100 animate-pulse">
-                                            <i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> 廚房製作中
-                                        </span>
-                                    </td>
-                                    <td class="p-4 text-right pr-6">
-                                        <button
-                                            class="text-emerald-600 font-bold hover:text-white bg-emerald-50 hover:bg-emerald-500 px-4 py-2 rounded-xl transition-all text-xs border border-emerald-100 hover:border-emerald-500 shadow-sm">
-                                            查看明細
-                                        </button>
-                                    </td>
-                                </tr>
-
-                                <tr class="hover:bg-gray-50 transition-colors opacity-75">
-                                    <td class="p-4 pl-6">
-                                        <div class="font-mono text-gray-600 font-bold mb-0.5">#ORD-0041</div>
-                                        <div class="text-xs text-gray-400 font-medium">今日 15:10</div>
-                                    </td>
-                                    <td class="p-4">
-                                        <div
-                                            class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gray-100 text-gray-500 font-black border border-gray-200">
-                                            8</div>
-                                    </td>
-                                    <td
-                                        class="p-4 max-w-[200px] truncate text-gray-500 line-through decoration-gray-300">
-                                        青醬雞肉義大利麵 x1, 紅茶 x1
-                                        <div class="text-xs text-gray-400 mt-0.5 no-underline">共 2 項餐點</div>
-                                    </td>
-                                    <td class="p-4 font-mono font-bold text-gray-500">NT$ 320</td>
-                                    <td class="p-4">
-                                        <span
-                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-500 text-xs font-bold border border-gray-200">
-                                            <i data-lucide="check" class="w-3.5 h-3.5"></i> 已出餐
-                                        </span>
-                                    </td>
-                                    <td class="p-4 text-right pr-6">
-                                        <button
-                                            class="text-gray-500 font-bold hover:text-gray-700 bg-white hover:bg-gray-100 px-4 py-2 rounded-xl transition-all text-xs border border-gray-200 shadow-sm">
-                                            查看明細
-                                        </button>
-                                    </td>
-                                </tr>
-
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
             </div>
 
             <div id="section-menu" class="content-section hidden max-w-6xl mx-auto space-y-6 fade-in">
@@ -362,39 +361,352 @@
                 </div>
             </div>
 
-            <div id="section-tables"
-                class="content-section hidden max-w-6xl mx-auto h-full flex flex-col items-center justify-center text-gray-400">
-                <i data-lucide="grid" class="w-16 h-16 mb-4 text-gray-300"></i>
-                <h2 class="text-xl font-bold text-gray-600 mb-2">桌號與 QR Code 管理</h2>
-                <p class="text-sm text-gray-500">檢視各桌狀態、重新列印專屬 QR Code。</p>
+            <div id="section-tables" class="content-section hidden max-w-6xl mx-auto space-y-6 fade-in">
+
+                <!-- 頂部工具列 -->
+                <div
+                    class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                            桌號與 QR Code 管理
+                            <span id="tables-count"
+                                class="text-sm font-bold bg-gray-100 text-gray-500 px-2.5 py-0.5 rounded-full">0</span>
+                        </h2>
+                        <p class="text-sm text-gray-500 mt-1">調整桌數，QR Code 即時產生，顧客掃描後直接進入該桌點餐。</p>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <label class="text-sm font-bold text-gray-600">桌數</label>
+                        <input type="number" id="input-table-count" min="1" max="100" value="10"
+                            class="w-24 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all font-bold text-center text-lg">
+                        <button id="btn-download-all-qr"
+                            class="flex items-center gap-2 bg-white border border-gray-200 hover:border-emerald-400 hover:text-emerald-600 text-gray-600 font-bold py-2.5 px-4 rounded-xl transition-all shadow-sm text-sm">
+                            <i data-lucide="archive" class="w-4 h-4"></i> 下載 ZIP
+                        </button>
+                    </div>
+                </div>
+
+                <!-- QR Code 卡片網格 -->
+                <div id="tables-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    <!-- 由 tables.js 動態渲染 -->
+                </div>
+
             </div>
 
-            <div id="section-reports"
-                class="content-section hidden max-w-6xl mx-auto h-full flex flex-col items-center justify-center text-gray-400">
-                <i data-lucide="pie-chart" class="w-16 h-16 mb-4 text-gray-300"></i>
-                <h2 class="text-xl font-bold text-gray-600 mb-2">營收與數據報表</h2>
-                <p class="text-sm text-gray-500">視覺化圖表、熱銷排行、月結算匯出功能即將上線。</p>
+            <div id="section-reports" class="content-section hidden max-w-6xl mx-auto space-y-6 fade-in">
+                <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                    <h2 class="text-xl font-bold text-gray-800 mb-1">營收報表</h2>
+                    <div class="flex gap-2 mt-3">
+                        <button class="report-period-btn active" data-period="day">今日</button>
+                        <button class="report-period-btn" data-period="week">本週</button>
+                        <button class="report-period-btn" data-period="month">本月</button>
+                    </div>
+                </div>
+
+                <!-- 統計數字 -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                        <p class="text-xs font-bold text-gray-400 mb-1">營業額</p>
+                        <p class="text-2xl font-black text-gray-800">NT$ <span id="rp-revenue">—</span></p>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                        <p class="text-xs font-bold text-gray-400 mb-1">訂單數</p>
+                        <p class="text-2xl font-black text-gray-800"><span id="rp-orders">—</span> 筆</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                        <p class="text-xs font-bold text-gray-400 mb-1">平均客單價</p>
+                        <p class="text-2xl font-black text-gray-800">NT$ <span id="rp-avg">—</span></p>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                        <p class="text-xs font-bold text-gray-400 mb-1">已付款</p>
+                        <p class="text-2xl font-black text-gray-800"><span id="rp-paid">—</span> 筆</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- 趨勢折線圖 -->
+                    <div class="lg:col-span-2 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                        <h3 class="font-bold text-gray-700 mb-4">每日營業額趨勢</h3>
+                        <div class="relative h-56">
+                            <canvas id="chart-revenue"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- 付款方式占比 -->
+                    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                        <h3 class="font-bold text-gray-700 mb-4">付款方式占比</h3>
+                        <div class="relative h-44">
+                            <canvas id="chart-payment"></canvas>
+                        </div>
+                        <div id="chart-payment-legend" class="mt-4 space-y-2"></div>
+                    </div>
+                </div>
+
+                <!-- 熱銷排行 -->
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-100">
+                        <h3 class="font-bold text-gray-700">熱銷餐點排行</h3>
+                    </div>
+                    <div id="rp-top-items" class="divide-y divide-gray-50 min-h-[80px]">
+                        <div class="p-8 text-center"><i data-lucide="loader"
+                                class="w-6 h-6 mx-auto animate-spin text-gray-200"></i></div>
+                    </div>
+                </div>
             </div>
 
-            <div id="section-employees"
-                class="content-section hidden max-w-6xl mx-auto h-full flex flex-col items-center justify-center text-gray-400">
-                <i data-lucide="users" class="w-16 h-16 mb-4 text-gray-300"></i>
-                <h2 class="text-xl font-bold text-gray-600 mb-2">員工權限管理</h2>
-                <p class="text-sm text-gray-500">新增店員帳號、設定結帳與退單權限。</p>
+            <div id="section-employees" class="content-section hidden max-w-3xl mx-auto space-y-6 fade-in">
+                <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                    <h2 class="text-xl font-bold text-gray-800 mb-1">店員管理</h2>
+                    <p class="text-sm text-gray-500 mt-1">將以下連結分享給店員，店員無需註冊即可管理訂單。</p>
+                </div>
+
+                <!-- 店員連結 -->
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center shrink-0">
+                            <i data-lucide="link" class="w-5 h-5 text-emerald-600"></i>
+                        </div>
+                        <div>
+                            <p class="font-bold text-gray-800">店員專屬連結</p>
+                            <p class="text-xs text-gray-400 mt-0.5">店家營業中才能操作，休息中自動鎖定</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+                        <span id="staff-link-text" class="text-sm text-gray-600 font-mono flex-1 truncate">載入中...</span>
+                    </div>
+
+                    <div class="flex gap-3">
+                        <button id="btn-copy-staff-link"
+                            class="flex-1 flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-xl transition-all text-sm active:scale-95">
+                            <i data-lucide="copy" class="w-4 h-4"></i> 複製連結
+                        </button>
+                        <a id="btn-open-staff-link" href="#" target="_blank"
+                            class="flex items-center justify-center gap-2 bg-white border border-gray-200 hover:border-emerald-400 hover:text-emerald-600 text-gray-600 font-bold py-2.5 px-4 rounded-xl transition-all text-sm">
+                            <i data-lucide="external-link" class="w-4 h-4"></i> 開啟預覽
+                        </a>
+                    </div>
+
+                    <div class="bg-amber-50 border border-amber-100 rounded-xl p-4 flex gap-3">
+                        <i data-lucide="info" class="w-4 h-4 text-amber-500 shrink-0 mt-0.5"></i>
+                        <p class="text-xs text-amber-700 leading-relaxed">此連結包含您的店家 ID，請只分享給信任的店員。如需更換連結，請聯絡系統管理員。</p>
+                    </div>
+                </div>
             </div>
 
-            <div id="section-settings"
-                class="content-section hidden max-w-6xl mx-auto h-full flex flex-col items-center justify-center text-gray-400">
-                <i data-lucide="settings" class="w-16 h-16 mb-4 text-gray-300"></i>
-                <h2 class="text-xl font-bold text-gray-600 mb-2">系統與店家設定</h2>
-                <p class="text-sm text-gray-500">修改營業時間、基本資料與列印設備連線設定。</p>
+            <div id="section-settings" class="content-section hidden max-w-2xl mx-auto space-y-6 fade-in pb-12">
+
+                <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                    <h2 class="text-xl font-bold text-gray-800 mb-0.5">店家設定</h2>
+                    <p class="text-sm text-gray-400">管理您的基本資料、Logo 與付款偏好。</p>
+                </div>
+
+                <!-- 基本資料 -->
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+                        <i data-lucide="store" class="w-5 h-5 text-emerald-500"></i>
+                        <h3 class="font-bold text-gray-800">基本資料</h3>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-600 mb-1.5">店家名稱 <span
+                                    class="text-red-400">*</span></label>
+                            <input type="text" id="setting-store-name" placeholder="例如：雅緻景觀餐廳"
+                                class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all">
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-600 mb-1.5">聯絡電話</label>
+                                <input type="tel" id="setting-phone" placeholder="02-1234-5678"
+                                    class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-600 mb-1.5">店家地址</label>
+                                <input type="text" id="setting-address" placeholder="台北市信義區..."
+                                    class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all">
+                            </div>
+                        </div>
+                        <div class="pt-1">
+                            <button id="btn-save-store-info"
+                                class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-6 rounded-xl transition-all text-sm active:scale-95 flex items-center gap-2 shadow-sm shadow-emerald-500/20">
+                                <i data-lucide="save" class="w-4 h-4"></i> 儲存基本資料
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Logo 上傳 -->
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+                        <i data-lucide="image" class="w-5 h-5 text-emerald-500"></i>
+                        <h3 class="font-bold text-gray-800">品牌 Logo</h3>
+                    </div>
+                    <div class="p-6 flex items-center gap-6">
+                        <div id="logo-preview-wrap"
+                            class="w-20 h-20 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center bg-gray-50 shrink-0 overflow-hidden">
+                            <i data-lucide="image" class="w-8 h-8 text-gray-300" id="logo-placeholder-icon"></i>
+                            <img id="setting-logo-preview" class="hidden w-full h-full object-cover">
+                        </div>
+                        <div class="flex-1 space-y-2">
+                            <p class="text-sm text-gray-500">建議尺寸 256×256px 以上，支援 JPG / PNG。</p>
+                            <label
+                                class="inline-flex items-center gap-2 cursor-pointer bg-white border border-gray-200 hover:border-emerald-400 hover:text-emerald-600 text-gray-600 font-bold py-2 px-4 rounded-xl transition-all text-sm">
+                                <i data-lucide="upload" class="w-4 h-4"></i> 選擇圖片
+                                <input type="file" id="setting-logo-file" accept="image/*" class="hidden">
+                            </label>
+                            <p id="logo-upload-status" class="text-xs text-gray-400"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 付款方式 -->
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+                        <i data-lucide="banknote" class="w-5 h-5 text-emerald-500"></i>
+                        <h3 class="font-bold text-gray-800">付款方式</h3>
+                    </div>
+                    <div class="divide-y divide-gray-50">
+                        <div class="px-6 py-4 flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <div
+                                    class="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center shrink-0">
+                                    <i data-lucide="banknote" class="w-5 h-5 text-emerald-600"></i>
+                                </div>
+                                <div>
+                                    <p class="font-bold text-gray-800">現金</p>
+                                    <p class="text-xs text-gray-400 mt-0.5">顧客至櫃檯以現金付款</p>
+                                </div>
+                            </div>
+                            <span
+                                class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">預設開啟</span>
+                        </div>
+                        <div class="px-6 py-4 flex items-center justify-between opacity-50">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center shrink-0">
+                                    <i data-lucide="credit-card" class="w-5 h-5 text-gray-400"></i>
+                                </div>
+                                <div>
+                                    <p class="font-bold text-gray-600">刷卡</p>
+                                    <p class="text-xs text-gray-400 mt-0.5">信用卡 / 金融卡</p>
+                                </div>
+                            </div>
+                            <span
+                                class="text-xs font-bold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">即將推出</span>
+                        </div>
+                        <div class="px-6 py-4 flex items-center justify-between opacity-50">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center shrink-0">
+                                    <svg viewBox="0 0 36 36" class="w-5 h-5" fill="none">
+                                        <rect width="36" height="36" rx="8" fill="#9ca3af" /><text x="50%" y="23"
+                                            text-anchor="middle" font-family="Arial,sans-serif" font-size="9"
+                                            font-weight="bold" fill="white">LINE</text><text x="50%" y="32"
+                                            text-anchor="middle" font-family="Arial,sans-serif" font-size="7"
+                                            font-weight="bold" fill="white">Pay</text>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="font-bold text-gray-600">Line Pay</p>
+                                    <p class="text-xs text-gray-400 mt-0.5">LINE Pay 行動支付</p>
+                                </div>
+                            </div>
+                            <span
+                                class="text-xs font-bold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">即將推出</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 帳號 / 登出 -->
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+                        <i data-lucide="user-circle" class="w-5 h-5 text-emerald-500"></i>
+                        <h3 class="font-bold text-gray-800">帳號</h3>
+                    </div>
+                    <div class="p-6 flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-bold text-gray-700">登入帳號</p>
+                            <p id="setting-email" class="text-sm text-gray-400 mt-0.5">載入中...</p>
+                        </div>
+                        <button id="btn-logout"
+                            class="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 font-bold py-2.5 px-5 rounded-xl transition-all text-sm border border-red-100 active:scale-95">
+                            <i data-lucide="log-out" class="w-4 h-4"></i> 登出系統
+                        </button>
+                    </div>
+                </div>
+
             </div>
 
-            <div id="section-help"
-                class="content-section hidden max-w-6xl mx-auto h-full flex flex-col items-center justify-center text-gray-400">
-                <i data-lucide="help-circle" class="w-16 h-16 mb-4 text-gray-300"></i>
-                <h2 class="text-xl font-bold text-gray-600 mb-2">幫助中心與客服</h2>
-                <p class="text-sm text-gray-500">操作手冊、常見問答集與聯絡技術支援。</p>
+            <div id="section-help" class="content-section hidden max-w-3xl mx-auto space-y-6 fade-in">
+                <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                    <h2 class="text-xl font-bold text-gray-800">幫助中心</h2>
+                    <p class="text-sm text-gray-500 mt-1">快速上手指南與常見問題解答。</p>
+                </div>
+
+                <!-- 快速入門 -->
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-50 flex items-center gap-2">
+                        <i data-lucide="rocket" class="w-4 h-4 text-emerald-500"></i>
+                        <h3 class="font-bold text-gray-800">快速入門</h3>
+                    </div>
+                    <div class="divide-y divide-gray-50">
+                        ${[
+                        ['1', '建立菜單分類', '前往【菜單管理】，先建立分類（例如：主餐、飲料），再新增餐點並上傳圖片。'],
+                        ['2', '設定桌號', '前往【桌號管理】，輸入桌數，系統自動產生 QR Code。'],
+                        ['3', '分享給顧客', '下載 QR Code 列印擺放在桌上，顧客掃描即可點餐。'],
+                        ['4', '分享給店員', '前往【員工管理】複製店員連結，店員無需登入即可管理訂單。'],
+                        ['5', '開始營業', '點選右上角的【休息中】切換為【營業中】，即可開始接單。'],
+                        ].map(([num, title, desc]) => `
+                        <div class="px-6 py-4 flex gap-4">
+                            <span
+                                class="w-6 h-6 bg-emerald-500 text-white text-xs font-black rounded-full flex items-center justify-center shrink-0 mt-0.5">${num}</span>
+                            <div>
+                                <p class="font-bold text-gray-800 text-sm">${title}</p>
+                                <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">${desc}</p>
+                            </div>
+                        </div>`).join('')}
+                    </div>
+                </div>
+
+                <!-- 常見問題 -->
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-50 flex items-center gap-2">
+                        <i data-lucide="message-circle-question" class="w-4 h-4 text-blue-500"></i>
+                        <h3 class="font-bold text-gray-800">常見問題</h3>
+                    </div>
+                    <div id="faq-list" class="divide-y divide-gray-50">
+                        ${[
+                        ['顧客掃 QR Code 後看不到菜單？', '請確認已建立至少一個分類和一個餐點，並確認餐點為「上架中」狀態。'],
+                        ['店員連結的安全性？', '連結包含您的店家 ID（UUID 格式，36 位隨機字元），難以被猜測。如需更換，請重新建立店家帳號。'],
+                        ['訂單即時通知沒有更新？', '請確認 Supabase 專案已開啟 Realtime 功能，並確認 orders 表已加入 Realtime 發布清單。'],
+                        ['顧客點餐後狀態一直是「待付款」？', '店員或店家需在訂單管理點選「標記已付款」，系統才會自動推進到製作中。'],
+                        ['如何修改已上架的餐點？', '在【菜單管理】中點選餐點卡片右上角的編輯按鈕即可修改。'],
+                        ['忘記帳號密碼怎麼辦？', '在登入頁點選「忘記密碼」，輸入 Email 後系統會寄送重設連結。'],
+                        ].map(([q, a]) => `
+                        <div class="faq-item px-6 py-4 cursor-pointer"
+                            onclick="this.querySelector('.faq-answer').classList.toggle('hidden'); this.querySelector('.faq-icon').classList.toggle('rotate-180')">
+                            <div class="flex items-center justify-between gap-4">
+                                <p class="font-bold text-gray-800 text-sm">${q}</p>
+                                <i data-lucide="chevron-down"
+                                    class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
+                            </div>
+                            <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">${a}</p>
+                        </div>`).join('')}
+                    </div>
+                </div>
+
+                <!-- 聯絡支援 -->
+                <div
+                    class="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <div class="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center shrink-0">
+                        <i data-lucide="mail" class="w-6 h-6 text-emerald-500"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p class="font-bold text-gray-800">還有其他問題？</p>
+                        <p class="text-sm text-gray-500 mt-0.5">歡迎透過 Email 聯絡技術支援，我們會在 1 個工作天內回覆。</p>
+                    </div>
+                    <a href="mailto:support@example.com"
+                        class="shrink-0 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl text-sm transition-all active:scale-95">
+                        聯絡我們
+                    </a>
+                </div>
             </div>
 
         </div>
@@ -546,8 +858,17 @@
     </div>
 
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="js/config.js"></script>
     <script src="./js/dashboard.js"></script>
+    <script src="./js/table.js"></script>
+    <script src="./js/orders.js"></script>
+    <script src="./js/overview.js"></script>
+    <script src="./js/reports.js"></script>
+    <script src="./js/staff.js"></script>
 </body>
 
 </html>
