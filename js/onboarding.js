@@ -16,7 +16,40 @@
 
         const tableCountInput = document.getElementById('setup-table-count');
         const tablePreviewGrid = document.getElementById('table-preview-grid');
-        const btnDownloadZip = document.querySelector('button.text-emerald-600');
+        const btnDownloadZip = document.getElementById('btn-download-zip');
+
+        function getTableNames() {
+            const count = Math.min(parseInt(tableCountInput?.value) || 0, 100);
+            return Array.from({ length: count }, (_, i) => `桌號${i + 1}`);
+        }
+
+        function renderTablePreviews() {
+            if (!tablePreviewGrid) return;
+            const names = getTableNames();
+            tablePreviewGrid.innerHTML = '';
+            const baseUrl = window.location.origin + window.location.pathname.replace('onboarding.html', 'order.html');
+
+            names.forEach(tableName => {
+                const orderUrl = `${baseUrl}?store_id=${currentStoreId}&table=${encodeURIComponent(tableName)}`;
+                const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(orderUrl)}`;
+                const card = document.createElement('div');
+                card.className = "bg-white border border-gray-200 rounded-xl p-4 flex flex-col items-center hover:shadow-lg transition-all fade-in";
+                card.innerHTML = `
+                    <div class="w-24 h-24 bg-gray-50 rounded-lg mb-3 flex items-center justify-center border border-gray-100 overflow-hidden">
+                        <img src="${qrImageUrl}" alt="${tableName}" class="w-20 h-20 object-contain">
+                    </div>
+                    <span class="font-bold text-gray-700 text-sm">${tableName}</span>`;
+                tablePreviewGrid.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        if (tableCountInput) {
+            tableCountInput.oninput = () => {
+                if (parseInt(tableCountInput.value) > 100) tableCountInput.value = 100;
+                renderTablePreviews();
+            };
+        }
 
         const menuItemsList = document.getElementById('menu-items-list');
         const btnAddItem = document.getElementById('btn-add-item');
@@ -193,29 +226,26 @@
 
         function renderTablePreviews() {
             if (!tablePreviewGrid || !tableCountInput) return;
-            const count = parseInt(tableCountInput.value) || 0;
+            const names = getTableNames();
             tablePreviewGrid.innerHTML = '';
             const baseUrl = window.location.origin + window.location.pathname.replace('onboarding.html', 'order.html');
 
-            for (let i = 1; i <= count; i++) {
-                const tableName = `桌號 ${i}`;
+            names.forEach(tableName => {
                 const orderUrl = `${baseUrl}?store_id=${currentStoreId}&table=${encodeURIComponent(tableName)}`;
                 const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(orderUrl)}`;
 
                 const card = document.createElement('div');
-                card.className = "bg-white border border-gray-200 rounded-xl p-4 flex flex-col items-center hover:shadow-lg transition-all group fade-in";
+                card.className = "bg-white border border-gray-200 rounded-xl p-4 flex flex-col items-center hover:shadow-lg transition-all fade-in";
                 card.innerHTML = `
                     <div class="w-24 h-24 bg-gray-50 rounded-lg mb-3 flex items-center justify-center border border-gray-100 overflow-hidden">
                         <img src="${qrImageUrl}" alt="${tableName}" class="w-20 h-20 object-contain">
                     </div>
-                    <span class="font-bold text-gray-700">${tableName}</span>
+                    <span class="font-bold text-gray-700 text-sm">${tableName}</span>
                 `;
                 tablePreviewGrid.appendChild(card);
-            }
+            });
             lucide.createIcons();
         }
-
-        if (tableCountInput) tableCountInput.oninput = () => { if (tableCountInput.value > 100) tableCountInput.value = 100; renderTablePreviews(); };
 
         function renderMenuList() {
             if (!menuItemsList) return;
@@ -323,11 +353,11 @@
                     }
 
                     if (currentStep === 2) {
-                        const count = parseInt(tableCountInput.value) || 0;
-                        if (!currentStoreId) throw new Error("找不到店家 ID，請重新整理頁面");
+                        const names = getTableNames();
+                        if (names.length === 0) throw new Error('請輸入桌數');
+                        if (!currentStoreId) throw new Error('找不到店家 ID，請重新整理頁面');
                         await supabaseClient.from('tables').delete().eq('store_id', currentStoreId);
-                        const tablesToInsert = [];
-                        for (let i = 1; i <= count; i++) { tablesToInsert.push({ store_id: currentStoreId, table_name: `桌號 ${i}` }); }
+                        const tablesToInsert = names.map(name => ({ store_id: currentStoreId, table_name: name }));
                         const { error } = await supabaseClient.from('tables').insert(tablesToInsert);
                         if (error) throw error;
                     }
