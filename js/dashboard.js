@@ -125,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (headerTitle) headerTitle.textContent = newTitle;
             if (targetId === 'section-menu') loadMenu();
+            if (targetId === 'section-overview' && typeof window.loadOverview === 'function') window.loadOverview();
             if (targetId === 'section-tables' && typeof window.loadTables === 'function') window.loadTables();
             if (targetId === 'section-settings') loadSettings();
             if (targetId === 'section-orders' && typeof window.loadOrders === 'function') window.loadOrders();
@@ -160,10 +161,24 @@ document.addEventListener('DOMContentLoaded', () => {
             const storeId = await getStoreId();
             if (!storeId) return;
 
-            const { data: products, error } = await window.supabaseClient.from('products').select('*, categories(name)').eq('store_id', storeId);
+            // 分類
+            const { data: cats } = await window.supabaseClient
+                .from('categories').select('id, name').eq('store_id', storeId);
+            const catMap = {};
+            (cats || []).forEach(c => { catMap[c.id] = c.name; });
+
+            // 商品（不用 FK join）
+            const { data: products, error } = await window.supabaseClient
+                .from('products')
+                .select('id, category_id, name, price, description, image_url, is_available')
+                .eq('store_id', storeId)
+                .order('name');
             if (error) throw error;
 
-            allProducts = products || [];
+            allProducts = (products || []).map(p => ({
+                ...p,
+                categories: { name: catMap[p.category_id] || '未分類' }
+            }));
 
             if (allProducts.length === 0) {
                 container.innerHTML = `<div class="text-center py-16"><div class="w-16 h-16 bg-gray-50 text-gray-300 rounded-2xl flex items-center justify-center mx-auto mb-4"><i data-lucide="inbox" class="w-8 h-8"></i></div><h4 class="font-bold text-gray-700 text-lg mb-1">目前還沒有任何餐點</h4><p class="text-sm text-gray-500">點擊右上角的「新增餐點」來豐富您的菜單吧！</p></div>`;
@@ -183,7 +198,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 html += `<div><h3 class="font-bold text-gray-700 text-lg mb-3 flex items-center gap-2"><span class="w-1.5 h-5 bg-emerald-500 rounded-full inline-block"></span>${category} <span class="text-sm font-normal text-gray-400">(${items.length} 項)</span></h3><div class="border border-gray-100 rounded-xl overflow-hidden shadow-sm"><table class="w-full text-left text-sm bg-white"><thead class="bg-gray-50/80 border-b border-gray-100 text-gray-500"><tr><th class="p-3 pl-5 font-medium">餐點名稱</th><th class="p-3 font-medium">價格</th><th class="p-3 font-medium">狀態</th><th class="p-3 text-right pr-5 font-medium">操作</th></tr></thead><tbody class="divide-y divide-gray-50">`;
 
                 items.forEach(p => {
-                    const statusHtml = p.is_available ? '<span class="px-2 py-1 bg-emerald-50 text-emerald-600 text-[11px] font-bold rounded-md border border-emerald-100">供應中</span>' : '<span class="px-2 py-1 bg-gray-50 text-gray-500 text-[11px] font-bold rounded-md border border-gray-100">已停售</span>';
+                    const statusHtml = p.is_available
+                        ? `<span class="inline-flex items-center px-2 py-1 bg-emerald-50 text-emerald-600 text-[11px] font-bold rounded-md border border-emerald-100 cursor-pointer hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-colors btn-toggle-available" data-id="${p.id}" data-available="true">供應中</span>`
+                        : `<span class="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-400 text-[11px] font-bold rounded-md border border-gray-200 cursor-pointer hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-100 transition-colors btn-toggle-available" data-id="${p.id}" data-available="false">已停售</span>`;
                     html += `<tr class="hover:bg-gray-50/50 transition-colors group"><td class="p-3 pl-5 font-bold text-gray-800">${p.name}</td><td class="p-3 font-mono text-gray-600">NT$ ${p.price}</td><td class="p-3">${statusHtml}</td><td class="p-3 text-right pr-5 opacity-0 group-hover:opacity-100 transition-opacity"><button onclick="editProduct('${p.id}')" class="text-gray-400 hover:text-emerald-600 p-1.5 rounded transition-colors" title="編輯"><i data-lucide="edit-3" class="w-4 h-4"></i></button><button onclick="deleteProduct('${p.id}', '${p.name}', '${p.image_url || ''}')" class="text-gray-400 hover:text-red-500 p-1.5 rounded transition-colors" title="刪除"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`;
                 });
                 html += `</tbody></table></div></div>`;
@@ -191,6 +208,25 @@ document.addEventListener('DOMContentLoaded', () => {
             html += '</div>';
             container.innerHTML = html;
             lucide.createIcons();
+
+            // 供應狀態切換
+            container.querySelectorAll('.btn-toggle-available').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = btn.dataset.id;
+                    const cur = btn.dataset.available === 'true';
+                    const next = !cur;
+                    btn.dataset.available = String(next);
+                    if (next) {
+                        btn.className = btn.className.replace('bg-gray-100 text-gray-400 border-gray-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-100', 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-red-50 hover:text-red-500 hover:border-red-100');
+                        btn.textContent = '供應中';
+                    } else {
+                        btn.className = btn.className.replace('bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-red-50 hover:text-red-500 hover:border-red-100', 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-100');
+                        btn.textContent = '已停售';
+                    }
+                    await window.supabaseClient.from('products').update({ is_available: next }).eq('id', id);
+                    allProducts = allProducts.map(p => p.id === id ? { ...p, is_available: next } : p);
+                });
+            });
 
         } catch (err) {
             container.innerHTML = '<p class="text-center text-red-500 py-10 font-bold">載入失敗，請檢查網路連線。</p>';
@@ -379,7 +415,7 @@ document.addEventListener('DOMContentLoaded', () => {
         selectProductCategory.value = '';
         window._selectedCategoryId = '';
         inputProductDesc.value = '';
-
+        if (typeof window.clearProductOptions === 'function') window.clearProductOptions();
         // 恢復自訂選單外觀
         customSelectText.textContent = '請選擇分類...';
         customSelectText.classList.add('text-gray-400');
@@ -489,6 +525,13 @@ document.addEventListener('DOMContentLoaded', () => {
         btnSaveProduct.innerHTML = '<i data-lucide="save" class="w-5 h-5"></i> 儲存修改';
         if (typeof lucide !== 'undefined') lucide.createIcons();
 
+        // 載入客製化選項
+        if (typeof window.loadProductOptions === 'function') {
+            const { data: opts } = await window.supabaseClient
+                .from('product_options').select('*').eq('product_id', id).order('sort_order');
+            window.loadProductOptions(opts || []);
+        }
+
         modalProduct.classList.remove('hidden');
         setTimeout(() => {
             modalProduct.classList.remove('opacity-0');
@@ -570,16 +613,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 let saveError;
+                let savedProductId = editingProductId;
                 if (editingProductId) {
                     const { error } = await window.supabaseClient.from('products').update(payload).eq('id', editingProductId);
                     saveError = error;
                 } else {
                     payload.is_available = true;
-                    const { error } = await window.supabaseClient.from('products').insert([payload]);
+                    const { data: inserted, error } = await window.supabaseClient.from('products').insert([payload]).select().single();
                     saveError = error;
+                    if (inserted) savedProductId = inserted.id;
                 }
 
                 if (saveError) throw saveError;
+
+                // 儲存客製化選項
+                if (savedProductId && typeof window.saveProductOptions === 'function') {
+                    await window.saveProductOptions(savedProductId, storeId);
+                }
 
                 toggleProductModal(false);
                 loadMenu();
@@ -623,6 +673,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (phoneEl) phoneEl.value = store.phone || '';
         if (addrEl) addrEl.value = store.address || '';
         if (emailEl) emailEl.textContent = user.email || '';
+        const descEl = document.getElementById('setting-description');
+        if (descEl) descEl.value = store.description || '';
 
         // Logo 預覽
         if (store.logo_url) {
@@ -673,6 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const name = document.getElementById('setting-store-name')?.value.trim();
         const phone = document.getElementById('setting-phone')?.value.trim();
         const address = document.getElementById('setting-address')?.value.trim();
+        const description = document.getElementById('setting-description')?.value.trim();
         if (!name) { AppDialog.alert('店家名稱不能為空', 'warning'); return; }
 
         const originalHtml = btn.innerHTML;
@@ -680,7 +733,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.disabled = true;
         lucide.createIcons();
 
-        const { error } = await window.supabaseClient.from('stores').update({ name, phone, address }).eq('id', currentStoreData.id);
+        const { error } = await window.supabaseClient.from('stores').update({ name, phone, address, description }).eq('id', currentStoreData.id);
         if (error) {
             AppDialog.alert('儲存失敗：' + error.message, 'danger');
             btn.innerHTML = originalHtml; btn.disabled = false; lucide.createIcons();
@@ -753,6 +806,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const items = [];
 
+        // 新訂單通知（由 orders.js 即時推入）
+        const newOrderItems = window._pendingBellNotifs || [];
+        newOrderItems.forEach(n => items.push(n));
+
         if (store) {
             if (!store.phone || !store.address) items.push({
                 icon: 'store',
@@ -784,7 +841,6 @@ document.addEventListener('DOMContentLoaded', () => {
             targetTitle: '桌號管理'
         });
 
-        // 付款方式：若從未造訪過設定頁則提示
         const hasSeenPaymentSettings = localStorage.getItem('seen-payment-settings');
         if (!hasSeenPaymentSettings) items.push({
             icon: 'banknote',
@@ -804,24 +860,27 @@ document.addEventListener('DOMContentLoaded', () => {
             if (notifCount) notifCount.textContent = `${items.length} 項`;
             if (notifList) {
                 notifList.innerHTML = items.map(item => `
-                    <button class="notif-item w-full text-left px-5 py-4 hover:bg-emerald-50 transition-colors flex items-start gap-3"
-                        data-target="${item.target}" data-title="${item.targetTitle}">
-                        <div class="w-9 h-9 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
-                            <i data-lucide="${item.icon}" class="w-4 h-4 text-amber-600"></i>
+                    <button class="notif-item w-full text-left px-5 py-4 hover:bg-emerald-50 transition-colors flex items-start gap-3 ${item.urgent ? 'bg-red-50 hover:bg-red-100 border-b border-red-100' : ''}"
+                        data-target="${item.target}" data-title="${item.targetTitle}" ${item._orderId ? `data-order-id="${item._orderId}"` : ''}>
+                        <div class="w-9 h-9 ${item.urgent ? 'bg-red-100 border-red-200' : 'bg-amber-50 border-amber-100'} border rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+                            <i data-lucide="${item.icon}" class="w-4 h-4 ${item.urgent ? 'text-red-500' : 'text-amber-600'}"></i>
                         </div>
                         <div class="flex-1 min-w-0">
-                            <p class="font-bold text-gray-800 text-sm">${item.title}</p>
-                            <p class="text-xs text-gray-400 mt-0.5">${item.desc}</p>
+                            <p class="font-bold text-sm ${item.urgent ? 'text-red-700' : 'text-gray-800'}">${item.title}</p>
+                            <p class="text-xs mt-0.5 ${item.urgent ? 'text-red-400' : 'text-gray-400'}">${item.desc}</p>
                         </div>
                         <i data-lucide="arrow-right" class="w-4 h-4 text-gray-300 shrink-0 mt-1"></i>
                     </button>`).join('');
                 if (typeof lucide !== 'undefined') lucide.createIcons();
 
-                // 點擊通知項目 → 跳到對應頁面
                 notifList.querySelectorAll('.notif-item').forEach(btn => {
                     btn.addEventListener('click', () => {
                         const targetId = btn.dataset.target;
-                        const targetTitle = btn.dataset.title;
+                        // 如果是新訂單通知，點擊後清除
+                        if (btn.dataset.orderId) {
+                            window._pendingBellNotifs = (window._pendingBellNotifs || [])
+                                .filter(n => n._orderId !== btn.dataset.orderId);
+                        }
                         document.querySelector(`[data-target="${targetId}"]`)?.click();
                         toggleNotifPanel(false);
                     });
@@ -850,6 +909,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.addEventListener('click', () => toggleNotifPanel(false));
     document.getElementById('notification-panel')?.addEventListener('click', e => e.stopPropagation());
+
+    // 新訂單即時通知（供 orders.js 呼叫）
+    window.notifyNewOrder = function (order) {
+        if (!window._pendingBellNotifs) window._pendingBellNotifs = [];
+        const num = String(order.daily_number || 0).padStart(3, '0');
+        const time = new Date(order.created_at).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+        // 避免重複
+        if (window._pendingBellNotifs.find(n => n._orderId === order.id)) return;
+        window._pendingBellNotifs.unshift({
+            _orderId: order.id,
+            icon: 'bell-ring',
+            title: `新訂單 #${num}`,
+            desc: `${order.table_name} · ${time} · NT$ ${order.total_price}`,
+            target: 'section-orders',
+            targetTitle: '訂單管理',
+            urgent: true
+        });
+        // 最多保留 5 筆新訂單通知
+        if (window._pendingBellNotifs.length > 5) window._pendingBellNotifs.pop();
+        // 鈴鐺閃爍
+        const bell = document.getElementById('btn-notifications');
+        bell?.classList.add('animate-bounce');
+        setTimeout(() => bell?.classList.remove('animate-bounce'), 2000);
+        checkSetupNotifications();
+    };
 
     // 初始化時檢查通知
     checkSetupNotifications();
