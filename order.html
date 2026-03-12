@@ -8,138 +8,300 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap"
+        rel="stylesheet" />
     <style>
         body {
             font-family: 'Noto Sans TC', sans-serif;
-            background-color: #f8fafc;
-            padding-bottom: 100px;
+            background: #f8fafc;
         }
-        .hide-scroll::-webkit-scrollbar { display: none; }
-        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
-        .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+
+        .hide-scroll::-webkit-scrollbar {
+            display: none;
+        }
+
+        .hide-scroll {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .cat-btn.active {
+            background: #ecfdf5;
+            color: #059669;
+            border-color: #10b981;
+            font-weight: 800;
+        }
+
+        .product-card {
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+
+        .product-card:active {
+            transform: scale(0.97);
+        }
+
+        .modal-slide {
+            transform: translateY(100%);
+            transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+        }
+
+        .modal-slide.open {
+            transform: translateY(0);
+        }
+
+        .qty-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: #ef4444;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 900;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
         }
     </style>
 </head>
 
-<body class="selection:bg-emerald-200">
+<body class="selection:bg-emerald-200 min-h-screen">
 
-    <!-- ====== 頂部 Header ====== -->
-    <header class="bg-white shadow-sm sticky top-0 z-40">
-        <div id="store-banner" class="h-24 bg-gradient-to-r from-emerald-400 to-teal-500 w-full object-cover"></div>
-        <div class="px-5 pt-3 pb-4 flex justify-between items-end -mt-10 relative">
-            <div class="flex gap-4 items-end">
-                <div id="store-logo-container" class="w-20 h-20 bg-white rounded-2xl shadow-md border-4 border-white overflow-hidden flex items-center justify-center shrink-0">
-                    <i data-lucide="store" class="w-8 h-8 text-gray-300" id="store-logo-fallback"></i>
-                    <img id="store-logo" class="w-full h-full object-cover hidden" />
-                </div>
-                <div class="mb-1">
-                    <h1 id="store-name" class="text-xl font-black text-gray-800 leading-tight">載入中...</h1>
-                    <p id="table-name" class="text-sm font-bold text-emerald-600 mt-0.5 bg-emerald-50 inline-block px-2 py-0.5 rounded-md border border-emerald-100"></p>
-                </div>
-            </div>
+    <div id="closed-overlay"
+        class="hidden fixed inset-0 z-[200] bg-white flex flex-col items-center justify-center text-center px-8">
+        <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+            <i data-lucide="moon" class="w-10 h-10 text-gray-400"></i>
         </div>
-        <nav id="category-nav" class="flex overflow-x-auto hide-scroll px-4 py-3 gap-2 border-t border-gray-100 bg-white shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)]">
-            <div class="animate-pulse w-16 h-8 bg-gray-100 rounded-full"></div>
-            <div class="animate-pulse w-20 h-8 bg-gray-100 rounded-full"></div>
+        <h2 id="closed-name" class="text-2xl font-black text-gray-800 mb-2"></h2>
+        <p class="text-lg font-bold text-gray-500 mb-1">目前暫停營業中</p>
+        <p class="text-sm text-gray-400">請稍後再試</p>
+    </div>
+
+    <header class="bg-white sticky top-0 z-40 shadow-sm">
+        <div id="store-banner"
+            class="h-20 bg-gradient-to-r from-emerald-400 to-teal-500 w-full relative overflow-hidden">
+            <div class="absolute inset-0 opacity-10"
+                style="background:radial-gradient(circle at 20% 50%, white 1px, transparent 1px) 0 0 / 30px 30px"></div>
+        </div>
+        <div class="px-4 pt-2 pb-2 flex items-end gap-3 -mt-8 relative">
+            <div id="logo-wrap"
+                class="w-16 h-16 bg-white rounded-2xl shadow-md border-[3px] border-white overflow-hidden flex items-center justify-center shrink-0">
+                <i data-lucide="store" class="w-7 h-7 text-gray-300" id="store-logo-fallback"></i>
+                <img id="store-logo" class="w-full h-full object-cover hidden" />
+            </div>
+            <div class="flex-1 min-w-0 mb-0.5">
+                <h1 id="store-name" class="text-lg font-black text-gray-800 leading-tight truncate">載入中...</h1>
+                <span id="table-badge"
+                    class="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 inline-block mt-0.5"></span>
+            </div>
+            <button id="btn-cart-mobile"
+                class="relative shrink-0 w-11 h-11 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-md shadow-emerald-500/30 active:scale-95 transition-transform lg:hidden">
+                <i data-lucide="shopping-bag" class="w-5 h-5 text-white"></i>
+                <span id="cart-count-mobile" class="qty-badge hidden">0</span>
+            </button>
+        </div>
+        <div id="store-desc-wrap" class="hidden px-4 pb-2">
+            <p id="store-desc" class="text-xs text-gray-400 leading-relaxed"></p>
+        </div>
+        <nav id="category-nav" class="flex overflow-x-auto hide-scroll px-4 py-2 gap-2 border-t border-gray-100">
+            <div class="animate-pulse flex gap-2">
+                <div class="w-16 h-8 bg-gray-100 rounded-full"></div>
+                <div class="w-20 h-8 bg-gray-100 rounded-full"></div>
+            </div>
         </nav>
     </header>
 
-    <!-- ====== 菜單主體 ====== -->
-    <main class="p-4 max-w-2xl mx-auto" id="menu-container">
-        <div class="flex justify-center py-20">
-            <i data-lucide="loader" class="w-8 h-8 text-emerald-500 animate-spin"></i>
-        </div>
-    </main>
-
-    <!-- ====== 購物車浮動列 ====== -->
-    <div id="cart-bar" class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] p-4 pb-safe z-50 transform translate-y-full transition-transform duration-300 flex justify-between items-center">
-        <div class="flex items-center gap-3">
-            <div class="relative">
-                <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-gray-600">
-                    <i data-lucide="shopping-bag" class="w-6 h-6"></i>
+    <div class="max-w-6xl mx-auto px-4 py-5 lg:flex lg:gap-6">
+        <main class="flex-1 min-w-0" id="menu-container">
+            <div class="flex justify-center py-20">
+                <i data-lucide="loader" class="w-8 h-8 text-emerald-500 animate-spin"></i>
+            </div>
+        </main>
+        <aside class="hidden lg:block w-80 shrink-0">
+            <div class="sticky top-36">
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div class="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+                        <h3 class="font-black text-gray-800">我的點單</h3>
+                        <span id="cart-count-desktop"
+                            class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">0
+                            項</span>
+                    </div>
+                    <div id="cart-list-desktop" class="divide-y divide-gray-50 max-h-96 overflow-y-auto hide-scroll">
+                        <p class="text-center text-gray-300 text-sm py-10 px-4">尚未選擇任何餐點</p>
+                    </div>
+                    <div class="p-4 border-t border-gray-50 space-y-3">
+                        <textarea id="cart-note-desktop" rows="2" placeholder="備註（選填）..."
+                            class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-emerald-500 resize-none transition-all"></textarea>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm font-bold text-gray-500">合計</span>
+                            <span id="cart-total-desktop" class="text-xl font-black text-gray-800">NT$ 0</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-1.5">
+                            <label
+                                class="flex flex-col items-center gap-1 p-2 border-2 rounded-xl cursor-pointer has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 border-gray-200 transition-all">
+                                <i data-lucide="banknote" class="w-4 h-4 text-gray-500"></i>
+                                <span class="text-[10px] font-bold text-gray-600">現金</span>
+                                <input type="radio" name="payment-desktop" value="cash" class="sr-only" checked>
+                            </label>
+                            <label
+                                class="flex flex-col items-center gap-1 p-2 border-2 rounded-xl cursor-not-allowed opacity-40 border-gray-200">
+                                <i data-lucide="credit-card" class="w-4 h-4 text-gray-400"></i>
+                                <span class="text-[10px] font-bold text-gray-400">刷卡</span>
+                                <input type="radio" name="payment-desktop" value="card" class="sr-only" disabled>
+                            </label>
+                            <label
+                                class="flex flex-col items-center gap-1 p-2 border-2 rounded-xl cursor-not-allowed opacity-40 border-gray-200">
+                                <svg class="w-4 h-4" viewBox="0 0 24 24">
+                                    <rect width="24" height="24" rx="5" fill="#00B900" />
+                                    <path
+                                        d="M12 4C7.58 4 4 7.13 4 11c0 2.37 1.25 4.47 3.2 5.83l-.82 3.07 3.38-1.76A9.3 9.3 0 0012 18.2c4.42 0 8-3.13 8-7s-3.58-6.2-8-6.2z"
+                                        fill="white" />
+                                </svg>
+                                <span class="text-[10px] font-bold text-gray-400">LINE Pay</span>
+                                <input type="radio" name="payment-desktop" value="linepay" class="sr-only" disabled>
+                            </label>
+                        </div>
+                        <button id="btn-checkout-desktop"
+                            class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-2xl transition-all active:scale-95 shadow-md shadow-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled>送出訂單</button>
+                    </div>
                 </div>
-                <span id="cart-count" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">0</span>
             </div>
-            <div>
-                <p class="text-xs text-gray-500 font-bold">總計</p>
-                <p class="text-xl font-black text-gray-800 leading-none">NT$ <span id="cart-total">0</span></p>
-            </div>
-        </div>
-        <button id="btn-checkout" class="bg-emerald-500 text-white font-bold py-3 px-8 rounded-2xl active:scale-95 transition-transform shadow-md shadow-emerald-500/20">
-            結帳送出
+        </aside>
+    </div>
+
+    <!-- Mobile cart bar -->
+    <div id="cart-bar"
+        class="lg:hidden fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 shadow-[0_-8px_20px_rgba(0,0,0,0.08)] px-4 py-3 z-50 transform translate-y-full transition-transform duration-300">
+        <button id="btn-checkout"
+            class="w-full bg-emerald-500 text-white font-bold py-3.5 rounded-2xl active:scale-95 transition-transform shadow-md shadow-emerald-500/20 flex items-center justify-between px-5">
+            <span class="flex items-center gap-2"><i data-lucide="shopping-bag" class="w-5 h-5"></i><span
+                    id="cart-count-bar">0 項</span></span>
+            <span>送出訂單</span>
+            <span id="cart-total-bar" class="font-black">NT$ 0</span>
         </button>
     </div>
 
-    <!-- ====== 結帳確認 Modal ====== -->
-    <div id="checkout-modal" class="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-gray-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300">
-        <div class="modal-card bg-white w-full sm:max-w-md rounded-t-[32px] sm:rounded-[32px] p-6 pb-8 shadow-2xl transform scale-95 opacity-0 transition-all duration-300">
+    <!-- Product modal backdrop -->
+    <div id="product-modal-backdrop" class="hidden fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm"
+        onclick="closeProductModal()"></div>
 
-            <!-- 拖曳把手（手機用） -->
-            <div class="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5 sm:hidden"></div>
-
-            <h2 class="text-xl font-black text-gray-800 mb-1 flex items-center gap-2">
-                <i data-lucide="receipt" class="w-5 h-5 text-emerald-500"></i> 確認您的訂單
-            </h2>
-            <p class="text-sm text-gray-500 font-medium mb-5">桌號：<span id="checkout-table" class="text-emerald-600 font-bold"></span></p>
-
-            <!-- 訂單明細列表 -->
-            <div id="checkout-items" class="space-y-0 mb-4 max-h-60 overflow-y-auto"></div>
-
-            <!-- 合計 -->
-            <div class="flex justify-between items-center py-3 border-t border-b border-gray-100 mb-5">
-                <span class="font-bold text-gray-600">總計金額</span>
-                <span class="text-2xl font-black text-gray-800">NT$ <span id="checkout-total">0</span></span>
+    <!-- Product detail modal -->
+    <div id="product-modal"
+        class="modal-slide fixed bottom-0 left-0 w-full z-[81] bg-white rounded-t-[28px] max-h-[92vh] overflow-y-auto hide-scroll shadow-2xl">
+        <div class="sticky top-0 bg-white z-10 flex justify-between items-center px-5 py-4 border-b border-gray-50">
+            <h3 id="pm-name" class="font-black text-gray-800 text-lg pr-4"></h3>
+            <button onclick="closeProductModal()"
+                class="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors shrink-0">
+                <i data-lucide="x" class="w-4 h-4 text-gray-600"></i>
+            </button>
+        </div>
+        <div id="pm-img-wrap" class="w-full overflow-hidden bg-gray-100 hidden">
+            <img id="pm-img" class="w-full object-cover max-h-64" />
+        </div>
+        <div class="px-5 py-4">
+            <p id="pm-price" class="text-2xl font-black text-gray-800"></p>
+            <p id="pm-desc" class="text-sm text-gray-500 mt-1.5 leading-relaxed"></p>
+        </div>
+        <div id="pm-options" class="px-5 space-y-5 pb-2"></div>
+        <div class="sticky bottom-0 bg-white border-t border-gray-100 px-5 py-4 flex items-center gap-4">
+            <div class="flex items-center gap-2 bg-gray-50 rounded-xl p-1 border border-gray-100">
+                <button id="pm-minus"
+                    class="w-9 h-9 flex items-center justify-center rounded-lg bg-white shadow-sm text-gray-600 active:scale-90 transition-transform">
+                    <i data-lucide="minus" class="w-4 h-4"></i>
+                </button>
+                <span id="pm-qty" class="w-8 text-center font-black text-gray-800 text-lg">1</span>
+                <button id="pm-plus"
+                    class="w-9 h-9 flex items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm active:scale-90 transition-transform">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                </button>
             </div>
+            <button id="pm-add-btn"
+                class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-black py-3 rounded-2xl transition-all active:scale-95 shadow-md shadow-emerald-500/20">
+                加入點單
+            </button>
+        </div>
+    </div>
 
-            <!-- 備註欄 -->
-            <div class="mb-5">
-                <label class="block text-sm font-bold text-gray-600 mb-2">備註（選填）</label>
-                <textarea id="order-note" rows="2" placeholder="例如：不要辣、過敏食材..."
-                    class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all resize-none"></textarea>
+    <!-- Checkout modal -->
+    <div id="checkout-modal"
+        class="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-gray-900/60 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300">
+        <div
+            class="modal-card bg-white w-full sm:max-w-md rounded-t-[32px] sm:rounded-[32px] p-6 pb-8 shadow-2xl transform scale-95 opacity-0 transition-all duration-300">
+            <div class="flex items-center justify-between mb-5">
+                <h2 class="text-xl font-black text-gray-800">確認點單</h2>
+                <button id="btn-close-checkout"
+                    class="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5 text-gray-500"></i>
+                </button>
             </div>
-
-            <!-- 付款方式 -->
-            <div class="mb-6">
-                <label class="block text-sm font-bold text-gray-600 mb-3">付款方式</label>
+            <div id="checkout-items" class="space-y-2 mb-4 max-h-48 overflow-y-auto hide-scroll"></div>
+            <div class="flex justify-between font-black text-gray-800 text-lg border-t border-gray-100 pt-3 mb-4">
+                <span>合計</span><span>NT$ <span id="checkout-total">0</span></span>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-bold text-gray-600 mb-2">付款方式</label>
                 <div class="grid grid-cols-3 gap-2">
-                    <label class="relative flex flex-col items-center gap-2 p-3 border-2 rounded-2xl cursor-pointer transition-all has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 border-gray-200 bg-white">
-                        <input type="radio" name="payment-method" value="cash" class="hidden" checked>
-                        <i data-lucide="banknote" class="w-6 h-6 text-gray-500 has-checked:text-emerald-600"></i>
-                        <span class="text-xs font-bold text-gray-700">現金</span>
+                    <label
+                        class="flex flex-col items-center gap-1 p-3 border-2 rounded-xl cursor-pointer has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 border-gray-200 transition-all">
+                        <i data-lucide="banknote" class="w-5 h-5 text-gray-500"></i>
+                        <span class="text-xs font-bold text-gray-600">現金</span>
+                        <input type="radio" name="payment" value="cash" class="sr-only" checked>
                     </label>
-                    <label class="relative flex flex-col items-center gap-2 p-3 border-2 rounded-2xl cursor-not-allowed opacity-50 border-gray-200 bg-gray-50">
-                        <input type="radio" name="payment-method" value="card" class="hidden" disabled>
-                        <i data-lucide="credit-card" class="w-6 h-6 text-gray-400"></i>
+                    <label class="flex flex-col items-center gap-1 p-3 border-2 rounded-xl opacity-40 border-gray-200">
+                        <i data-lucide="credit-card" class="w-5 h-5 text-gray-400"></i>
                         <span class="text-xs font-bold text-gray-400">刷卡</span>
-                        <span class="absolute -top-1.5 -right-1.5 bg-gray-400 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">即將推出</span>
+                        <span class="text-[9px] text-gray-400">即將推出</span>
+                        <input type="radio" name="payment" value="card" class="sr-only" disabled>
                     </label>
-                    <label class="relative flex flex-col items-center gap-2 p-3 border-2 rounded-2xl cursor-not-allowed opacity-50 border-gray-200 bg-gray-50">
-                        <input type="radio" name="payment-method" value="linepay" class="hidden" disabled>
-                        <div class="w-6 h-6 flex items-center justify-center">
-                            <svg viewBox="0 0 64 24" class="w-full h-full opacity-50" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <rect width="64" height="24" rx="4" fill="#00B900"/>
-                                <text x="50%" y="16" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="bold" fill="white">LINE Pay</text>
-                            </svg>
-                        </div>
-                        <span class="text-xs font-bold text-gray-400">Line Pay</span>
-                        <span class="absolute -top-1.5 -right-1.5 bg-gray-400 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">即將推出</span>
+                    <label class="flex flex-col items-center gap-1 p-3 border-2 rounded-xl opacity-40 border-gray-200">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24">
+                            <rect width="24" height="24" rx="6" fill="#00B900" />
+                            <path
+                                d="M12 4C7.58 4 4 7.13 4 11c0 2.37 1.25 4.47 3.2 5.83l-.82 3.07 3.38-1.76A9.3 9.3 0 0012 18.2c4.42 0 8-3.13 8-7s-3.58-6.2-8-6.2z"
+                                fill="white" />
+                        </svg>
+                        <span class="text-xs font-bold text-gray-400">LINE Pay</span>
+                        <span class="text-[9px] text-gray-400">即將推出</span>
+                        <input type="radio" name="payment" value="linepay" class="sr-only" disabled>
                     </label>
                 </div>
             </div>
-
-            <!-- 按鈕 -->
-            <div class="flex gap-3">
-                <button id="btn-cancel-checkout" class="flex-1 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 font-bold py-4 rounded-2xl transition-all active:scale-95">
-                    繼續點餐
-                </button>
-                <button id="btn-confirm-order" class="flex-2 flex-grow bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-md shadow-emerald-500/20 active:scale-95 flex items-center justify-center gap-2">
-                    確認送出 <i data-lucide="send" class="w-4 h-4"></i>
-                </button>
+            <div class="mb-4">
+                <label class="block text-sm font-bold text-gray-600 mb-2">備註 <span
+                        class="font-normal text-gray-400">（選填）</span></label>
+                <textarea id="checkout-note" rows="2" placeholder="例如：對蝦過敏、不要香菜..."
+                    class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 resize-none transition-all"></textarea>
             </div>
+            <div id="checkout-cash-note" class="hidden mb-4 p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                <p class="text-xs font-bold text-amber-700 flex items-center gap-1.5">
+                    <i data-lucide="info" class="w-4 h-4"></i> 請至櫃檯出示訂單號碼並付款
+                </p>
+            </div>
+            <button id="btn-confirm-order"
+                class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 rounded-2xl transition-all active:scale-95 shadow-lg shadow-emerald-500/30">
+                送出訂單
+            </button>
         </div>
     </div>
 
