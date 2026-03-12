@@ -109,10 +109,15 @@
                 </div>
 
                 <!-- 操作按鈕 -->
-                <div class="flex gap-2 w-full">
-                    <button class="btn-download-qr flex-1 text-xs font-bold py-2.5 px-3 bg-gray-50 text-gray-600 rounded-xl hover:bg-gray-100 transition-colors border border-gray-100 flex items-center justify-center gap-1.5"
+                <div class="flex gap-1.5 w-full">
+                    <button class="btn-preview-qr text-xs font-bold py-2.5 px-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-colors border border-emerald-100 flex items-center justify-center gap-1 whitespace-nowrap"
+                        data-url="${qrUrl}" title="預覽點餐頁">
+                        <i data-lucide="eye" class="w-3.5 h-3.5 pointer-events-none shrink-0"></i>
+                        <span class="pointer-events-none">預覽</span>
+                    </button>
+                    <button class="btn-download-qr flex-1 text-xs font-bold py-2.5 px-2 bg-gray-50 text-gray-600 rounded-xl hover:bg-gray-100 transition-colors border border-gray-100 flex items-center justify-center gap-1.5"
                         data-id="${table.id}" data-name="${table.table_name}">
-                        <i data-lucide="download" class="w-3.5 h-3.5 pointer-events-none"></i> 下載 QR Code
+                        <i data-lucide="download" class="w-3.5 h-3.5 pointer-events-none"></i> 下載
                     </button>
                 </div>`;
 
@@ -135,6 +140,14 @@
         });
 
         lucide.createIcons();
+
+        // 綁定：預覽點餐頁
+        grid.querySelectorAll('.btn-preview-qr').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const url = btn.dataset.url;
+                if (url) window.open(url, '_blank');
+            });
+        });
 
         // 綁定：刪除桌號
         grid.querySelectorAll('.btn-delete-table').forEach(btn => {
@@ -291,10 +304,15 @@
                         <div id="qr-temp-${i}" class="w-36 h-36 rounded-xl overflow-hidden flex items-center justify-center bg-white border border-gray-100 p-1"></div>
                         <div class="absolute inset-0 rounded-xl border-2 border-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
                     </div>
-                    <div class="flex gap-2 w-full">
-                        <button class="btn-download-qr flex-1 text-xs font-bold py-2.5 px-3 bg-gray-50 text-gray-600 rounded-xl hover:bg-gray-100 transition-colors border border-gray-100 flex items-center justify-center gap-1.5"
+                    <div class="flex gap-1.5 w-full">
+                        <button class="btn-preview-qr text-xs font-bold py-2.5 px-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-colors border border-emerald-100 flex items-center justify-center gap-1 whitespace-nowrap"
+                            data-url="${qrUrl}" title="預覽點餐頁">
+                            <i data-lucide="eye" class="w-3.5 h-3.5 pointer-events-none shrink-0"></i>
+                            <span class="pointer-events-none">預覽</span>
+                        </button>
+                        <button class="btn-download-qr flex-1 text-xs font-bold py-2.5 px-2 bg-gray-50 text-gray-600 rounded-xl hover:bg-gray-100 transition-colors border border-gray-100 flex items-center justify-center gap-1.5"
                             data-id="temp-${i}" data-name="${tableName}">
-                            <i data-lucide="download" class="w-3.5 h-3.5 pointer-events-none"></i> 下載 QR Code
+                            <i data-lucide="download" class="w-3.5 h-3.5 pointer-events-none"></i> 下載
                         </button>
                     </div>`;
                 grid.appendChild(card);
