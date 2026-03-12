@@ -3,11 +3,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
         if (typeof lucide !== 'undefined') lucide.createIcons();
 
-        const SUPABASE_URL = 'https://xhvlwmcrgwskaforgxqd.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_nluuQ4-miY-nunLCYrvTrA_z577O8Pc';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-        // --- 🌟 DOM 抓取區 ---
+        // 🌟 初始化已經移除，直接使用 supabaseClient
         const btnNext = document.getElementById('btn-next');
         const btnPrev = document.getElementById('btn-prev');
         const title = document.getElementById('step-title');
@@ -18,12 +14,10 @@
         const uploadPlaceholder = document.getElementById('upload-placeholder');
         const btnRemoveLogo = document.getElementById('btn-remove-logo');
 
-        // 步驟 2 元素
         const tableCountInput = document.getElementById('setup-table-count');
         const tablePreviewGrid = document.getElementById('table-preview-grid');
         const btnDownloadZip = document.querySelector('button.text-emerald-600');
 
-        // 🌟【新加入：步驟 3 元素】
         const menuItemsList = document.getElementById('menu-items-list');
         const btnAddItem = document.getElementById('btn-add-item');
         const tempMenuItems = [];
@@ -34,12 +28,59 @@
         let currentStep = 1;
         const totalSteps = 3;
 
+        // 🌟 小工具 1：全形轉半形 (地址與文字通用)
+        function toHalfWidth(str) {
+            if (!str) return '';
+            // 會自動把 ０-９、Ａ-Ｚ、以及 （） 等全形符號轉成半形
+            return str.replace(/[\uff01-\uff5e]/g, function (char) {
+                return String.fromCharCode(char.charCodeAt(0) - 65248);
+            }).replace(/\u3000/g, ' ');
+        }
+
+        // 🌟 小工具 2：台灣電話智慧格式化 (支援所有例外區碼)
+        function formatTaiwanPhone(phone) {
+            let p = toHalfWidth(phone).trim();
+            let digits = p.replace(/\D/g, '');
+
+            if (digits.startsWith('09') && digits.length === 10) {
+                return `${digits.slice(0, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}`;
+            }
+            else if (digits.startsWith('0') && digits.length >= 9) {
+                // 特殊區碼清單
+                const fourDigitAreas = ['0826', '0836']; // 烏坵、馬祖
+                const threeDigitAreas = ['037', '049', '082', '089']; // 苗栗、南投、金門、台東
+
+                let area = '';
+                let local = '';
+
+                // 優先比對 4 碼與 3 碼區碼
+                if (fourDigitAreas.some(a => digits.startsWith(a))) {
+                    area = digits.slice(0, 4);
+                    local = digits.slice(4);
+                } else if (threeDigitAreas.some(a => digits.startsWith(a))) {
+                    area = digits.slice(0, 3);
+                    local = digits.slice(3);
+                } else {
+                    area = digits.slice(0, 2);
+                    local = digits.slice(2);
+                }
+
+                // 根據市話長度決定橫槓位置 (6碼為 xxx-xxx，7或8碼為 xxx-xxxx)
+                if (local.length === 6) {
+                    return `(${area}) ${local.slice(0, 3)}-${local.slice(3)}`;
+                } else {
+                    return `(${area}) ${local.slice(0, local.length - 4)}-${local.slice(-4)}`;
+                }
+            }
+            return p;
+        }
+
         // 3. 身分檢查
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
         if (!user || authError) { window.location.href = 'login.html'; return; }
         currentUser = user;
 
-        const { data: storeData } = await supabase.from('stores').select('*').eq('owner_id', currentUser.id).single();
+        const { data: storeData } = await supabaseClient.from('stores').select('*').eq('owner_id', currentUser.id).single();
         if (storeData) {
             currentStoreId = storeData.id;
             if (document.getElementById('setup-store-name')) document.getElementById('setup-store-name').value = storeData.name || '';
@@ -49,7 +90,6 @@
                     logoPreview.src = storeData.logo_url;
                     logoPreview.classList.remove('hidden');
                     uploadPlaceholder.classList.add('hidden');
-                    // 🌟 加上這行：如果有舊圖，也要把刪除按鈕變出來
                     if (btnRemoveLogo) btnRemoveLogo.classList.remove('hidden');
                 }
             }
@@ -61,17 +101,12 @@
             "步驟 3：建立您的第一份線上菜單"
         ];
 
-        // --- 🌟【補回：步驟 1 圖片上傳與刪除邏輯】---
         if (logoArea && fileInput) {
-            // 點擊區塊觸發選檔
             logoArea.onclick = () => fileInput.click();
-
-            // 當選好檔案時執行上傳
             fileInput.onchange = async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
 
-                // 防呆：上傳時鎖定按鈕
                 if (btnNext) {
                     btnNext.disabled = true;
                     btnNext.classList.add('opacity-50', 'cursor-not-allowed');
@@ -79,7 +114,6 @@
                     lucide.createIcons();
                 }
 
-                // 顯示預覽
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     if (logoPreview) {
@@ -87,31 +121,22 @@
                         logoPreview.classList.remove('hidden');
                     }
                     if (uploadPlaceholder) uploadPlaceholder.classList.add('hidden');
-                    if (btnRemoveLogo) btnRemoveLogo.classList.remove('hidden'); // 顯示刪除按鈕
+                    if (btnRemoveLogo) btnRemoveLogo.classList.remove('hidden');
                 };
                 reader.readAsDataURL(file);
 
-                // 上傳到 Supabase Storage
                 const fileExt = file.name.split('.').pop();
                 const filePath = `${currentUser.id}/${Date.now()}.${fileExt}`;
 
-                const { data, error } = await supabase.storage
-                    .from('store-logos')
-                    .upload(filePath, file);
+                const { data, error } = await supabaseClient.storage.from('store-logos').upload(filePath, file);
 
                 if (error) {
                     alert('圖片上傳失敗：' + error.message);
                 } else {
-                    // 🌟 就在這裡！妳要找的那一行出現了
-                    const { data: { publicUrl } } = supabase.storage
-                        .from('store-logos')
-                        .getPublicUrl(filePath);
-
+                    const { data: { publicUrl } } = supabaseClient.storage.from('store-logos').getPublicUrl(filePath);
                     uploadedLogoUrl = publicUrl;
-                    console.log('✅ Logo 上傳成功:', uploadedLogoUrl);
                 }
 
-                // 解鎖按鈕
                 if (btnNext) {
                     btnNext.disabled = false;
                     btnNext.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -120,23 +145,52 @@
             };
         }
 
-        // 處理刪除 Logo 的邏輯
+        // 處理刪除 Logo 的邏輯 (進階版：連同 Storage 一起刪除)
         if (btnRemoveLogo) {
-            btnRemoveLogo.onclick = (e) => {
+            btnRemoveLogo.onclick = async (e) => {
                 e.stopPropagation(); // 防止點到刪除卻又打開選檔視窗
+
+                // 1. 讓按鈕顯示轉圈圈，防止使用者連點
+                const originalIcon = btnRemoveLogo.innerHTML;
+                btnRemoveLogo.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i>';
+                lucide.createIcons();
+
+                // 2. 去 Supabase Storage 把實體檔案徹底刪除
+                if (uploadedLogoUrl) {
+                    try {
+                        // 🌟 這裡最重要！必須先把 filePath 從網址中「切」出來，電腦才知道要刪誰
+                        const filePath = uploadedLogoUrl.split('/store-logos/')[1];
+
+                        if (filePath) {
+                            const { data, error } = await supabaseClient.storage.from('store-logos').remove([filePath]);
+
+                            if (error) {
+                                console.error('Storage 刪除失敗:', error);
+                            } else if (data && data.length === 0) {
+                                // 🌟 如果沒有 error，但刪除名單是空的，代表被權限擋下來了
+                                console.warn('⚠️ 檔案未刪除，可能是 Supabase Storage RLS 權限不足！');
+                            } else {
+                                console.log('🗑️ Storage 實體檔案已徹底清除:', filePath);
+                            }
+                        }
+                    } catch (err) {
+                        console.error('刪除過程發生意外:', err);
+                    }
+                }
+
+                // 3. 恢復原本的 UI 狀態與變數
                 uploadedLogoUrl = ''; // 清空暫存網址
                 if (logoPreview) {
                     logoPreview.src = '';
                     logoPreview.classList.add('hidden');
                 }
                 if (uploadPlaceholder) uploadPlaceholder.classList.remove('hidden');
-                btnRemoveLogo.classList.add('hidden'); // 隱藏自己
+                btnRemoveLogo.classList.add('hidden');
+                btnRemoveLogo.innerHTML = originalIcon; // 恢復叉叉圖示
                 if (fileInput) fileInput.value = ''; // 清空檔案選擇器
-                console.log('🗑️ Logo 已移除');
             };
         }
 
-        // --- 🌟 步驟 2：動態 QR Code 生成 ---
         function renderTablePreviews() {
             if (!tablePreviewGrid || !tableCountInput) return;
             const count = parseInt(tableCountInput.value) || 0;
@@ -161,14 +215,8 @@
             lucide.createIcons();
         }
 
-        if (tableCountInput) {
-            tableCountInput.oninput = () => {
-                if (tableCountInput.value > 100) tableCountInput.value = 100;
-                renderTablePreviews();
-            };
-        }
+        if (tableCountInput) tableCountInput.oninput = () => { if (tableCountInput.value > 100) tableCountInput.value = 100; renderTablePreviews(); };
 
-        // --- 🌟【新加入：步驟 3 畫面渲染函式】 ---
         function renderMenuList() {
             if (!menuItemsList) return;
             if (tempMenuItems.length === 0) {
@@ -185,29 +233,21 @@
                         <h4 class="font-bold text-gray-800">${item.name}</h4>
                         <p class="text-sm text-gray-500">${item.category} / NT$ ${item.price}</p>
                     </div>
-                    <button onclick="removeTempItem(${index})" class="p-2 text-gray-400 hover:text-red-500 transition-colors">
-                        <i data-lucide="trash-2" class="w-5 h-5"></i>
-                    </button>
+                    <button onclick="removeTempItem(${index})" class="p-2 text-gray-400 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
                 `;
                 menuItemsList.appendChild(div);
             });
             lucide.createIcons();
         }
 
-        // 將刪除功能暴露給 window
-        window.removeTempItem = (index) => {
-            tempMenuItems.splice(index, 1);
-            renderMenuList();
-        };
+        window.removeTempItem = (index) => { tempMenuItems.splice(index, 1); renderMenuList(); };
 
-        // 綁定「加入菜品」按鈕
         if (btnAddItem) {
             btnAddItem.onclick = () => {
                 const name = document.getElementById('menu-item-name').value;
                 const category = document.getElementById('menu-item-category').value;
                 const price = document.getElementById('menu-item-price').value;
                 if (!name || !category || !price) return alert('請完整填寫菜品資訊');
-
                 tempMenuItems.push({ name, category, price: parseInt(price) });
                 document.getElementById('menu-item-name').value = '';
                 document.getElementById('menu-item-category').value = '';
@@ -216,7 +256,6 @@
             };
         }
 
-        // --- 🌟 批次下載 ZIP 邏輯 ---
         if (btnDownloadZip) {
             btnDownloadZip.onclick = async () => {
                 const qrImages = tablePreviewGrid.querySelectorAll('img');
@@ -240,38 +279,23 @@
             };
         }
 
-        // --- 🌟 UI 更新與跳轉 ---
         function updateUI() {
             if (title) title.textContent = titles[currentStep - 1];
             if (btnPrev) btnPrev.classList.toggle('invisible', currentStep === 1);
-
             if (currentStep === 2) renderTablePreviews();
             if (currentStep === 3) renderMenuList();
-
-            if (btnNext) {
-                btnNext.innerHTML = currentStep === totalSteps ? '完成設定進入後台 <i data-lucide="check-circle" class="w-5 h-5"></i>' : '儲存並下一步 <i data-lucide="arrow-right" class="w-5 h-5"></i>';
-            }
-
+            if (btnNext) btnNext.innerHTML = currentStep === totalSteps ? '完成設定進入後台 <i data-lucide="check-circle" class="w-5 h-5"></i>' : '儲存並下一步 <i data-lucide="arrow-right" class="w-5 h-5"></i>';
             if (progressLine) progressLine.style.width = `${((currentStep - 1) / (totalSteps - 1)) * 100}%`;
 
-            // 🌟【修正這裡】：更新圓圈與文字狀態
             for (let i = 1; i <= totalSteps; i++) {
                 const dot = document.getElementById(`dot-${i}`);
                 const text = document.getElementById(`text-${i}`);
                 const content = document.getElementById(`step-content-${i}`);
-
                 if (dot && text) {
-                    const isActive = i <= currentStep; // 已經過或正在進行的步驟
-
-                    // 變更圓圈顏色：啟動時綠底白字，未啟動時白底灰邊
-                    dot.className = `w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-md transition-all duration-300 ${isActive ? 'bg-emerald-500 text-white' : 'bg-white border-2 border-gray-200 text-gray-400'
-                        }`;
-
-                    // 變更文字顏色
-                    text.className = `text-sm font-bold transition-colors ${isActive ? 'text-emerald-600' : 'text-gray-400'
-                        }`;
+                    const isActive = i <= currentStep;
+                    dot.className = `w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-md transition-all duration-300 ${isActive ? 'bg-emerald-500 text-white' : 'bg-white border-2 border-gray-200 text-gray-400'}`;
+                    text.className = `text-sm font-bold transition-colors ${isActive ? 'text-emerald-600' : 'text-gray-400'}`;
                 }
-
                 if (content) content.classList.toggle('hidden', i !== currentStep);
             }
             lucide.createIcons();
@@ -282,123 +306,74 @@
                 try {
                     // --- 步驟 1：儲存店家基本資訊 ---
                     if (currentStep === 1) {
-                        const { error } = await supabase.from('stores').update({
+                        // 1. 抓取原始輸入值
+                        const rawPhone = document.getElementById('setup-phone').value;
+                        const rawAddress = document.getElementById('setup-address').value;
+
+                        // 2. 存入資料庫 (過濾與清洗)
+                        const { error } = await supabaseClient.from('stores').update({
                             name: document.getElementById('setup-store-name').value,
-                            phone: document.getElementById('setup-phone').value,
-                            address: document.getElementById('setup-address').value,
+                            phone: formatTaiwanPhone(rawPhone),        // 🌟 智慧格式化：加橫槓與括號
+                            address: toHalfWidth(rawAddress),          // 🌟 地址全形轉半形
                             description: document.getElementById('setup-description').value,
                             logo_url: uploadedLogoUrl
                         }).eq('owner_id', currentUser.id);
 
-                        if (error) throw error; // 報錯就跳到 catch，不會往下走
-                    }
-
-                    // --- 步驟 2：儲存桌號 ---
-                    if (currentStep === 2) {
-                        const count = parseInt(tableCountInput.value) || 0;
-                        // 確保有 storeId 才能操作
-                        if (!currentStoreId) throw new Error("找不到店家 ID，請重新整理頁面");
-
-                        await supabase.from('tables').delete().eq('store_id', currentStoreId);
-                        const tablesToInsert = [];
-                        for (let i = 1; i <= count; i++) {
-                            tablesToInsert.push({ store_id: currentStoreId, table_name: `桌號 ${i}` });
-                        }
-                        const { error } = await supabase.from('tables').insert(tablesToInsert);
                         if (error) throw error;
                     }
 
-                    // --- 步驟 3：儲存菜單 (改為可選) ---
-                    // --- 🌟 步驟 3：菜單存檔（加強偵錯版） ---
-                    if (currentStep === 3) {
-                        console.log('📝 準備存檔，目前暫存清單：', tempMenuItems);
-
-                        if (tempMenuItems.length > 0) {
-                            // 0. 檢查 ID 是否存在
-                            if (!currentStoreId) {
-                                console.error('❌ 錯誤：找不到 currentStoreId');
-                                alert('系統遺失店家 ID，請重新整理頁面再試一次');
-                                return;
-                            }
-
-                            try {
-                                // 1. 先清空舊有的分類（會連帶刪除產品）
-                                console.log('🔥 正在清理舊資料...');
-                                await supabase.from('categories').delete().eq('store_id', currentStoreId);
-
-                                // 2. 提取不重複分類
-                                const uniqueCats = [...new Set(tempMenuItems.map(item => item.category))];
-                                console.log('📂 準備建立分類：', uniqueCats);
-
-                                // 3. 建立分類並【務必】使用 .select() 取回 ID
-                                const { data: createdCats, error: catErr } = await supabase
-                                    .from('categories')
-                                    .insert(uniqueCats.map(c => ({
-                                        store_id: currentStoreId,
-                                        name: c
-                                    })))
-                                    .select(); // 👈 沒這行，後面就拿不到 ID
-
-                                if (catErr) throw catErr;
-                                console.log('✅ 分類建立成功：', createdCats);
-
-                                // 4. 產品對應分類 ID
-                                const productsToInsert = tempMenuItems.map(item => {
-                                    // 在剛建立成功的分類中找到對應的那一個
-                                    const catObj = createdCats.find(c => c.name === item.category);
-                                    return {
-                                        store_id: currentStoreId,
-                                        category_id: catObj ? catObj.id : null,
-                                        name: item.name,
-                                        price: item.price
-                                    };
-                                }).filter(p => p.category_id !== null); // 過濾掉沒對到分類的（防呆）
-
-                                console.log('📦 準備存入產品：', productsToInsert);
-
-                                // 5. 存入產品
-                                const { error: prodErr } = await supabase
-                                    .from('products')
-                                    .insert(productsToInsert);
-
-                                if (prodErr) throw prodErr;
-                                console.log('🎉 所有產品存檔成功！');
-
-                            } catch (error) {
-                                console.error('❌ 存檔過程出錯：', error);
-                                alert('存檔失敗：' + error.message);
-                                return; // 報錯就停止，不跳轉
-                            }
-                        }
-
-                        // 6. 最後標記初始化完成並跳轉
-                        console.log('🏁 標記初始化完成...');
-                        await supabase.from('stores')
-                            .update({ is_initialized: true })
-                            .eq('owner_id', currentUser.id);
-
-                        window.location.href = 'dashboard.html';
+                    if (currentStep === 2) {
+                        const count = parseInt(tableCountInput.value) || 0;
+                        if (!currentStoreId) throw new Error("找不到店家 ID，請重新整理頁面");
+                        await supabaseClient.from('tables').delete().eq('store_id', currentStoreId);
+                        const tablesToInsert = [];
+                        for (let i = 1; i <= count; i++) { tablesToInsert.push({ store_id: currentStoreId, table_name: `桌號 ${i}` }); }
+                        const { error } = await supabaseClient.from('tables').insert(tablesToInsert);
+                        if (error) throw error;
                     }
 
-                    // 🌟 關鍵位子：這裡必須在所有 if (currentStep) 之外
-                    // 確保前面的存檔完成後，步驟一定會 +1 並更新 UI
+                    if (currentStep === 3) {
+                        if (tempMenuItems.length > 0) {
+                            if (!currentStoreId) throw new Error("找不到店家 ID");
+                            await supabaseClient.from('categories').delete().eq('store_id', currentStoreId);
+                            const uniqueCats = [...new Set(tempMenuItems.map(item => item.category))];
+                            const { data: createdCats, error: catErr } = await supabaseClient
+                                .from('categories')
+                                .insert(uniqueCats.map(c => ({ store_id: currentStoreId, name: c })))
+                                .select();
+                            if (catErr) throw catErr;
+
+                            const productsToInsert = tempMenuItems.map(item => {
+                                const catObj = createdCats.find(c => c.name === item.category);
+                                return {
+                                    store_id: currentStoreId,
+                                    category_id: catObj ? catObj.id : null,
+                                    name: item.name,
+                                    price: item.price
+                                };
+                            }).filter(p => p.category_id !== null);
+
+                            const { error: prodErr } = await supabaseClient.from('products').insert(productsToInsert);
+                            if (prodErr) throw prodErr;
+                        }
+
+                        await supabaseClient.from('stores').update({ is_initialized: true }).eq('owner_id', currentUser.id);
+                        window.location.href = 'dashboard.html';
+                        return;
+                    }
+
                     if (currentStep < totalSteps) {
                         currentStep++;
                         updateUI();
-                        console.log('🚀 前進到步驟：', currentStep);
                     }
 
                 } catch (err) {
-                    console.error('❌ 按鈕執行失敗:', err);
                     alert('發生錯誤：' + (err.message || '請檢查網路連線'));
                 }
             };
         }
 
-        if (btnPrev) {
-            btnPrev.onclick = () => { if (currentStep > 1) { currentStep--; updateUI(); } };
-        }
-
+        if (btnPrev) btnPrev.onclick = () => { if (currentStep > 1) { currentStep--; updateUI(); } };
         updateUI();
     });
 })();
