@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>店員訂單管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap"
+        rel="stylesheet" />
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: #f8fafc;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .staff-filter-btn {
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: 700;
+            border-radius: 10px;
+            border: 1.5px solid #e5e7eb;
+            color: #6b7280;
+            background: white;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .staff-filter-btn:hover {
+            border-color: #10b981;
+            color: #059669;
+            background: #ecfdf5;
+        }
+
+        .staff-filter-btn.active {
+            border-color: #10b981;
+            color: #059669;
+            background: #ecfdf5;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen">
+
+    <!-- 頂部 Header -->
+    <header class="bg-white border-b border-gray-100 sticky top-0 z-20 shadow-sm">
+        <div class="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div id="store-status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-300"></div>
+                <span id="store-name-header" class="font-black text-gray-800 text-base">載入中...</span>
+            </div>
+            <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                <button class="staff-filter-btn active" data-filter="all">全部</button>
+                <button class="staff-filter-btn" data-filter="active">待處理</button>
+                <button class="staff-filter-btn" data-filter="completed">已完成</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主體 -->
+    <main class="max-w-2xl mx-auto px-4 py-5 space-y-3" id="orders-container">
+        <div class="text-center py-20">
+            <i data-lucide="loader" class="w-8 h-8 mx-auto animate-spin text-gray-300"></i>
+        </div>
+    </main>
+
+    <!-- 休息中遮罩 -->
+    <div id="closed-overlay"
+        class="hidden fixed inset-0 z-50 bg-white flex flex-col items-center justify-center text-center px-8">
+        <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+            <i data-lucide="moon" class="w-10 h-10 text-gray-400"></i>
+        </div>
+        <h2 id="closed-store-name" class="text-2xl font-black text-gray-800 mb-2"></h2>
+        <p class="text-lg font-bold text-gray-500 mb-1">目前休息中</p>
+        <p class="text-sm text-gray-400">請等待店家開始營業</p>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script>
+        (async function () {
+            const params = new URLSearchParams(location.search);
+            const storeId = params.get('store_id');
+
+            if (!storeId) {
+                document.getElementById('orders-container').innerHTML =
+                    '<p class="text-center text-red-500 font-bold py-20">連結無效，請重新取得店員連結</p>';
+                lucide.createIcons();
+                return;
+            }
+
+            const STATUS_CONFIG = {
+                pending: { label: '未付款', icon: 'banknote', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200', pulse: true },
+                confirmed: { label: '已確認', icon: 'check', bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200', pulse: false },
+                preparing: { label: '製作中', icon: 'flame', bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-200', pulse: true },
+                ready: { label: '可取餐', icon: 'bell', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200', pulse: false },
+                completed: { label: '已完成', icon: 'check-circle', bg: 'bg-gray-100', text: 'text-gray-500', border: 'border-gray-200', pulse: false },
+                cancelled: { label: '已取消', icon: 'x-circle', bg: 'bg-red-50', text: 'text-red-400', border: 'border-red-100', pulse: false },
+            };
+
+            const NEXT_STATUS = {
+                pending: { status: 'preparing', label: '確認並製作' },
+                preparing: { status: 'ready', label: '製作完成' },
+                ready: { status: 'completed', label: '完成取餐' },
+            };
+
+            const PAY_LABEL = { cash: '現金', card: '刷卡', linepay: 'Line Pay' };
+
+            let allOrders = [];
+            let currentFilter = 'all';
+            let storeIsOpen = true;
+
+            // ── 載入店家 & 檢查營業狀態 ──
+            async function checkStore() {
+                const { data: store } = await window.supabaseClient
+                    .from('stores').select('name, is_open').eq('id', storeId).single();
+                if (!store) return;
+
+                document.getElementById('store-name-header').textContent = store.name;
+                document.title = `${store.name} · 店員管理`;
+
+                storeIsOpen = store.is_open !== false;
+                updateStoreStatusUI();
+
+                if (!storeIsOpen) {
+                    document.getElementById('closed-store-name').textContent = store.name;
+                    document.getElementById('closed-overlay').classList.remove('hidden');
+                }
+            }
+
+            function updateStoreStatusUI() {
+                const dot = document.getElementById('store-status-dot');
+                if (storeIsOpen) {
+                    dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+                } else {
+                    dot.className = 'w-2.5 h-2.5 rounded-full bg-gray-300';
+                }
+            }
+
+            // ── 載入訂單 ──
+            async function loadOrders() {
+                const todayStart = new Date();
+                todayStart.setHours(0, 0, 0, 0);
+
+                const { data: orders } = await window.supabaseClient
+                    .from('orders')
+                    .select('*, order_items(product_name, quantity, subtotal)')
+                    .eq('store_id', storeId)
+                    .gte('created_at', todayStart.toISOString())
+                    .order('created_at', { ascending: false });
+
+                allOrders = orders || [];
+                renderOrders();
+            }
+
+            function getFiltered() {
+                if (currentFilter === 'active') return allOrders.filter(o => !['completed', 'cancelled'].includes(o.status));
+                if (currentFilter === 'completed') return allOrders.filter(o => o.status === 'completed');
+                return allOrders;
+            }
+
+            function renderOrders() {
+                const container = document.getElementById('orders-container');
+                const filtered = getFiltered();
+
+                if (filtered.length === 0) {
+                    container.innerHTML = `<div class="text-center py-20 text-gray-400">
+                    <i data-lucide="inbox" class="w-10 h-10 mx-auto mb-3 text-gray-200"></i>
+                    <p class="font-bold text-sm">目前沒有訂單</p>
+                </div>`;
+                    lucide.createIcons();
+                    return;
+                }
+
+                container.innerHTML = filtered.map(order => renderCard(order)).join('');
+                lucide.createIcons();
+
+                container.querySelectorAll('.btn-next').forEach(btn => {
+                    btn.addEventListener('click', () => updateStatus(btn.dataset.id, btn.dataset.next));
+                });
+
+                container.querySelectorAll('.btn-paid').forEach(btn => {
+                    btn.addEventListener('click', () => markPaid(btn.dataset.id));
+                });
+            }
+
+            function renderCard(order) {
+                const s = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
+                const next = NEXT_STATUS[order.status];
+                const num = String(order.daily_number || 0).padStart(3, '0');
+                const time = new Date(order.created_at).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+                const items = order.order_items || [];
+                const pay = PAY_LABEL[order.payment_method] || '現金';
+                const totalQty = items.reduce((s, i) => s + i.quantity, 0);
+                const isCompleted = order.status === 'completed';
+
+                return `
+            <div class="bg-white rounded-2xl border ${order.status === 'pending' ? 'border-amber-200' : 'border-gray-100'} shadow-sm overflow-hidden fade-in ${isCompleted ? 'opacity-60' : ''}">
+
+                <!-- 頂部：流水號、桌號、狀態 -->
+                <div class="flex items-center justify-between px-4 py-3 border-b border-gray-50">
+                    <div class="flex items-center gap-3">
+                        <div class="text-center">
+                            <div class="font-black text-lg text-gray-800 leading-none">#${num}</div>
+                            <div class="text-[10px] text-gray-400">${time}</div>
+                        </div>
+                        <div class="w-px h-8 bg-gray-100"></div>
+                        <div>
+                            <div class="font-black text-gray-800 text-sm">${order.table_name}</div>
+                            <div class="text-[10px] text-gray-400">${pay}</div>
+                        </div>
+                    </div>
+                    <span class="text-xs font-bold px-2.5 py-1.5 rounded-xl ${s.bg} ${s.text} border ${s.border} flex items-center gap-1 ${s.pulse && !isCompleted ? 'animate-pulse' : ''}">
+                        <i data-lucide="${s.icon}" class="w-3 h-3"></i> ${s.label}
+                    </span>
+                </div>
+
+                <!-- 餐點明細 -->
+                <div class="px-4 py-3 space-y-2">
+                    ${items.map(item => `
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="text-gray-700 font-medium">${item.product_name}</span>
+                        <div class="flex items-center gap-3 shrink-0">
+                            <span class="text-gray-400 font-mono text-xs">×${item.quantity}</span>
+                            <span class="font-bold text-gray-700 w-16 text-right text-xs">NT$${item.subtotal.toLocaleString()}</span>
+                        </div>
+                    </div>`).join('')}
+
+                    <div class="pt-2 border-t border-gray-50 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            ${order.note ? `<span class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-0.5">📝 ${order.note}</span>` : ''}
+                            ${order.is_paid ? `<span class="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-0.5">✓ 已付款</span>` : ''}
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-gray-400">×${totalQty}</span>
+                            <span class="font-black text-gray-800">NT$ ${order.total_price.toLocaleString()}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 操作按鈕 -->
+                ${!isCompleted ? `
+                <div class="px-4 pb-3 flex gap-2">
+                    ${!order.is_paid ? `
+                    <button class="btn-paid flex-1 py-2.5 rounded-xl border-2 border-emerald-400 text-emerald-600 font-bold text-sm hover:bg-emerald-50 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                        data-id="${order.id}">
+                        <i data-lucide="banknote" class="w-4 h-4"></i> 標記已付款
+                    </button>` : ''}
+                    ${next ? `
+                    <button class="btn-next flex-1 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                        data-id="${order.id}" data-next="${next.status}">
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i> ${next.label}
+                    </button>` : ''}
+                </div>` : ''}
+            </div>`;
+            }
+
+            async function updateStatus(orderId, newStatus) {
+                const order = allOrders.find(o => o.id === orderId);
+                if (order) order.status = newStatus;
+                renderOrders();
+                await window.supabaseClient.from('orders')
+                    .update({ status: newStatus, updated_at: new Date().toISOString() })
+                    .eq('id', orderId);
+            }
+
+            async function markPaid(orderId) {
+                const order = allOrders.find(o => o.id === orderId);
+                if (!order) return;
+                order.is_paid = true;
+                order.status = 'preparing';
+                renderOrders();
+                await window.supabaseClient.from('orders').update({
+                    is_paid: true, status: 'preparing', updated_at: new Date().toISOString()
+                }).eq('id', orderId);
+            }
+
+            // ── Realtime ──
+            function subscribeRealtime() {
+                window.supabaseClient
+                    .channel('staff-orders-' + storeId)
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', filter: `store_id=eq.${storeId}` },
+                        async (payload) => {
+                            const { data: full } = await window.supabaseClient
+                                .from('orders').select('*, order_items(product_name, quantity, subtotal)')
+                                .eq('id', payload.new.id).single();
+                            if (full) allOrders.unshift(full);
+                            renderOrders();
+                        })
+                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `store_id=eq.${storeId}` },
+                        (payload) => {
+                            const idx = allOrders.findIndex(o => o.id === payload.new.id);
+                            if (idx !== -1) allOrders[idx] = { ...allOrders[idx], ...payload.new };
+                            renderOrders();
+                        })
+                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'stores', filter: `id=eq.${storeId}` },
+                        (payload) => {
+                            storeIsOpen = payload.new.is_open !== false;
+                            updateStoreStatusUI();
+                            if (!storeIsOpen) {
+                                document.getElementById('closed-overlay').classList.remove('hidden');
+                            } else {
+                                document.getElementById('closed-overlay').classList.add('hidden');
+                            }
+                        })
+                    .subscribe();
+            }
+
+            // ── 篩選 ──
+            document.querySelectorAll('.staff-filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.staff-filter-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentFilter = btn.dataset.filter;
+                    renderOrders();
+                });
+            });
+
+            // ── 初始化 ──
+            await checkStore();
+            await loadOrders();
+            subscribeRealtime();
+            lucide.createIcons();
+
+        })();
+    </script>
+</body>
+
+</html>
