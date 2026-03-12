@@ -70,6 +70,10 @@
                             class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"></i>
                         <input type="password" id="login-password" required placeholder="••••••••"
                             class="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-gray-800">
+                        <div class="flex justify-end mt-2">
+                            <button type="button" id="btn-show-forgot-password"
+                                class="text-sm font-bold text-emerald-600 hover:text-emerald-700 transition-colors">忘記密碼？</button>
+                        </div>
                     </div>
                 </div>
 
@@ -139,6 +143,30 @@
 
         </div>
     </div>
+    <div id="modal-forgot-password"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm hidden transition-opacity duration-300 opacity-0">
+        <div class="bg-white w-full max-w-sm rounded-[24px] shadow-2xl overflow-hidden transform transition-all duration-300 scale-95 opacity-0 p-6"
+            id="modal-forgot-content">
+            <h3 class="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+                <i data-lucide="key-round" class="w-6 h-6 text-emerald-500"></i> 重設密碼
+            </h3>
+            <p class="text-sm text-gray-500 mb-6 font-medium">請輸入您註冊時使用的電子郵件，我們將發送重設密碼的連結給您。</p>
+
+            <div class="mb-6">
+                <input type="email" id="input-forgot-email" placeholder="name@example.com"
+                    class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition-all text-gray-800">
+            </div>
+
+            <div class="flex gap-3 w-full">
+                <button id="btn-cancel-forgot"
+                    class="flex-1 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 font-bold py-3 rounded-xl transition-all active:scale-95">取消</button>
+                <button id="btn-send-reset-email"
+                    class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all shadow-md shadow-emerald-500/20 active:scale-95 flex items-center justify-center gap-2">
+                    發送驗證信
+                </button>
+            </div>
+        </div>
+    </div>
 
     <div id="success-modal"
         class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm hidden">
@@ -163,6 +191,8 @@
         </div>
     </div>
 
+    <script src="js/config.js"></script>
+    <script src="js/login.js"></script>
     <script src="js/auth.js"></script>
 </body>
 
