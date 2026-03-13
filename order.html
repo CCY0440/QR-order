@@ -97,7 +97,7 @@
         <p class="text-sm text-gray-400">請稍後再試</p>
     </div>
 
-    <header class="bg-white sticky top-0 z-40 shadow-sm">
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-40 shadow-sm">
         <div id="store-banner"
             class="h-20 bg-gradient-to-r from-emerald-400 to-teal-500 w-full relative overflow-hidden">
             <div class="absolute inset-0 opacity-10"
@@ -115,7 +115,7 @@
                     class="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 inline-block mt-0.5"></span>
             </div>
             <button id="btn-cart-mobile"
-                class="relative shrink-0 w-11 h-11 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-md shadow-emerald-500/30 active:scale-95 transition-transform lg:hidden">
+                class="relative shrink-0 w-11 h-11 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-md shadow-emerald-500/30 active:scale-95 transition-transform hidden">
                 <i data-lucide="shopping-bag" class="w-5 h-5 text-white"></i>
                 <span id="cart-count-mobile" class="qty-badge hidden">0</span>
             </button>
@@ -132,7 +132,7 @@
     </header>
 
     <div class="max-w-6xl mx-auto px-4 py-5 lg:flex lg:gap-6">
-        <main class="flex-1 min-w-0" id="menu-container">
+        <main class="flex-1 min-w-0 pb-28" id="menu-container">
             <div class="flex justify-center py-20">
                 <i data-lucide="loader" class="w-8 h-8 text-emerald-500 animate-spin"></i>
             </div>
