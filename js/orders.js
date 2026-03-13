@@ -114,7 +114,7 @@
         const isPaid = order.is_paid;
 
         return `
-        <div class="bg-white rounded-2xl border ${order.status === 'pending' ? 'border-amber-200 shadow-amber-50' : 'border-gray-100'} shadow-sm p-5 flex flex-col sm:flex-row sm:items-center gap-4 transition-all hover:shadow-md">
+        <div class="fade-in bg-white rounded-2xl border ${order.status === 'pending' ? 'border-amber-200 shadow-amber-50' : 'border-gray-100'} shadow-sm p-5 flex flex-col sm:flex-row sm:items-center gap-4 transition-all hover:shadow-md">
 
             <!-- 左：訂單號 + 桌號 -->
             <div class="flex items-center gap-4 shrink-0">
@@ -310,14 +310,14 @@
                 table: 'orders',
                 filter: `store_id=eq.${storeId}`
             }, async (payload) => {
-                const { data: newOrder } = await window.supabaseClient
-                    .from('orders')
-                    .select('id, store_id, table_name, status, total_price, payment_method, is_paid, note, daily_number, created_at, order_items(product_name, quantity, subtotal)')
-                    .eq('id', payload.new.id)
-                    .single();
+                const { data: newOrder } = await window.supabaseClient // ... (省略原本的)
+
                 if (newOrder) {
                     allOrders.unshift(newOrder);
                     renderOrders();
+
+                    // 💡 在這裡呼叫音效與鈴鐺！
+                    window.playNotification();
 
                     // 訂單動態徽章
                     const badge = document.getElementById('orders-new-badge');
@@ -347,3 +347,5 @@
     }
 
 })();
+
+// playNotification 統一由 dashboard.html 內的 <script> 定義，此處不重複覆蓋
