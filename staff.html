@@ -161,7 +161,7 @@
 
                 const { data: orders } = await window.supabaseClient
                     .from('orders')
-                    .select('id, store_id, table_name, status, total_price, payment_method, is_paid, note, daily_number, created_at, order_items(product_name, quantity, subtotal)')
+                    .select('*, order_items(product_name, quantity, subtotal)')
                     .eq('store_id', storeId)
                     .gte('created_at', todayStart.toISOString())
                     .order('created_at', { ascending: false });
@@ -292,36 +292,26 @@
                 }).eq('id', orderId);
             }
 
-            // ── Realtime（不用 filter，client 端自己過濾，不需後台設定）──
+            // ── Realtime ──
             function subscribeRealtime() {
                 window.supabaseClient
                     .channel('staff-orders-' + storeId)
-                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' },
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', filter: `store_id=eq.${storeId}` },
                         async (payload) => {
-                            // 只處理屬於本店的訂單
-                            if (payload.new.store_id !== storeId) return;
-                            // 重新撈完整資料（含 order_items）
                             const { data: full } = await window.supabaseClient
-                                .from('orders')
-                                .select('id, store_id, table_name, status, total_price, payment_method, is_paid, note, daily_number, created_at, order_items(product_name, quantity, subtotal)')
+                                .from('orders').select('*, order_items(product_name, quantity, subtotal)')
                                 .eq('id', payload.new.id).single();
-                            if (full) {
-                                allOrders.unshift(full);
-                                renderOrders();
-                                // 震動提示（手機）
-                                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-                            }
+                            if (full) allOrders.unshift(full);
+                            renderOrders();
                         })
-                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' },
+                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `store_id=eq.${storeId}` },
                         (payload) => {
-                            if (payload.new.store_id !== storeId) return;
                             const idx = allOrders.findIndex(o => o.id === payload.new.id);
                             if (idx !== -1) allOrders[idx] = { ...allOrders[idx], ...payload.new };
                             renderOrders();
                         })
-                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'stores' },
+                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'stores', filter: `id=eq.${storeId}` },
                         (payload) => {
-                            if (payload.new.id !== storeId) return;
                             storeIsOpen = payload.new.is_open !== false;
                             updateStoreStatusUI();
                             if (!storeIsOpen) {
@@ -330,9 +320,7 @@
                                 document.getElementById('closed-overlay').classList.add('hidden');
                             }
                         })
-                    .subscribe((status) => {
-                        console.log('Staff Realtime status:', status);
-                    });
+                    .subscribe();
             }
 
             // ── 篩選 ──
