@@ -32,6 +32,36 @@
             }
         }
 
+        @keyframes ring-bell {
+
+            0%,
+            100% {
+                transform: rotate(0deg);
+            }
+
+            20% {
+                transform: rotate(15deg);
+            }
+
+            40% {
+                transform: rotate(-10deg);
+            }
+
+            60% {
+                transform: rotate(15deg);
+            }
+
+            80% {
+                transform: rotate(-10deg);
+            }
+        }
+
+        .animate-ring {
+            animation: ring-bell 0.6s ease-in-out 2;
+            /* 搖動 2 次 */
+            transform-origin: top center;
+        }
+
         .staff-filter-btn {
             padding: 6px 14px;
             font-size: 12px;
@@ -59,7 +89,6 @@
 </head>
 
 <body class="min-h-screen">
-
     <!-- 頂部 Header -->
     <header class="bg-white border-b border-gray-100 sticky top-0 z-20 shadow-sm">
         <div class="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
@@ -67,10 +96,18 @@
                 <div id="store-status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-300"></div>
                 <span id="store-name-header" class="font-black text-gray-800 text-base">載入中...</span>
             </div>
-            <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
-                <button class="staff-filter-btn active" data-filter="all">全部</button>
-                <button class="staff-filter-btn" data-filter="active">待處理</button>
-                <button class="staff-filter-btn" data-filter="completed">已完成</button>
+            <div class="flex items-center gap-3">
+                <button id="staff-bell" class="relative p-1.5 text-gray-400 transition-colors">
+                    <i data-lucide="bell" class="w-5 h-5"></i>
+                    <span id="staff-bell-dot"
+                        class="absolute top-1 right-1.5 w-2 h-2 bg-red-500 rounded-full hidden border-2 border-white"></span>
+                </button>
+
+                <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                    <button class="staff-filter-btn active" data-filter="all">全部</button>
+                    <button class="staff-filter-btn" data-filter="active">待處理</button>
+                    <button class="staff-filter-btn" data-filter="completed">已完成</button>
+                </div>
             </div>
         </div>
     </header>
@@ -95,6 +132,34 @@
 
     <script src="js/config.js"></script>
     <script>
+        // 把音效設定在這裡，並強制瀏覽器預先載入 (要換聲音只要改這行網址！)
+        const notifAudio = new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3');
+        notifAudio.preload = 'auto';
+
+        window.playNotification = function () {
+            // 播放音效 (重置時間確保能連續播放)
+            notifAudio.currentTime = 0;
+            notifAudio.play().catch(e => console.log('記得先點擊畫面一下，才能解鎖音效喔！', e));
+
+            // 尋找鈴鐺
+            const bell = document.getElementById('btn-bell') || document.getElementById('staff-bell');
+            const dot = document.getElementById('bell-dot') || document.getElementById('staff-bell-dot');
+
+            if (bell) {
+                // 魔法：先移除舊動畫，強制重繪，再加入新動畫，保證每次都搖！
+                bell.classList.remove('animate-ring', 'text-emerald-500');
+                void bell.offsetWidth;
+
+                bell.classList.add('animate-ring', 'text-emerald-500');
+                if (dot) dot.classList.remove('hidden');
+
+                // 1.5 秒後移除搖晃動畫
+                setTimeout(() => {
+                    bell.classList.remove('animate-ring', 'text-emerald-500');
+                }, 1500);
+            }
+        };
+
         (async function () {
             const params = new URLSearchParams(location.search);
             const storeId = params.get('store_id');
@@ -292,35 +357,50 @@
                 }).eq('id', orderId);
             }
 
-            // ── Realtime ──
+            // 【最安全連線版】
+            let realtimeChannel = null; // 在函數外宣告
+
             function subscribeRealtime() {
-                window.supabaseClient
+                // 確保不會重複訂閱
+                if (realtimeChannel) {
+                    window.supabaseClient.removeChannel(realtimeChannel);
+                }
+
+                realtimeChannel = window.supabaseClient
                     .channel('staff-orders-' + storeId)
-                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', filter: `store_id=eq.${storeId}` },
-                        async (payload) => {
-                            const { data: full } = await window.supabaseClient
-                                .from('orders').select('*, order_items(product_name, quantity, subtotal)')
-                                .eq('id', payload.new.id).single();
-                            if (full) allOrders.unshift(full);
-                            renderOrders();
-                        })
-                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `store_id=eq.${storeId}` },
-                        (payload) => {
-                            const idx = allOrders.findIndex(o => o.id === payload.new.id);
-                            if (idx !== -1) allOrders[idx] = { ...allOrders[idx], ...payload.new };
-                            renderOrders();
-                        })
-                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'stores', filter: `id=eq.${storeId}` },
-                        (payload) => {
-                            storeIsOpen = payload.new.is_open !== false;
-                            updateStoreStatusUI();
-                            if (!storeIsOpen) {
-                                document.getElementById('closed-overlay').classList.remove('hidden');
-                            } else {
-                                document.getElementById('closed-overlay').classList.add('hidden');
-                            }
-                        })
-                    .subscribe();
+                    .on('postgres_changes', {
+                        event: '*',
+                        schema: 'public',
+                        table: 'orders',
+                        filter: `store_id=eq.${storeId}`
+                    }, async (payload) => {
+                        console.log("收到訂單更新:", payload);
+
+                        // 💡 加入這三行：如果事件是 INSERT (新增訂單)，就播放音效與搖鈴鐺
+                        if (payload.eventType === 'INSERT') {
+                            window.playNotification();
+                        }
+
+                        await loadOrders();
+                    })
+                    .on('postgres_changes', {
+                        event: 'UPDATE',
+                        schema: 'public',
+                        table: 'stores',
+                        filter: `id=eq.${storeId}`
+                    }, (payload) => {
+                        storeIsOpen = payload.new.is_open !== false;
+                        updateStoreStatusUI();
+                        if (!storeIsOpen) {
+                            document.getElementById('closed-overlay').classList.remove('hidden');
+                        } else {
+                            document.getElementById('closed-overlay').classList.add('hidden');
+                        }
+                    })
+                    .subscribe((status, err) => {
+                        console.log("Realtime 連線狀態:", status);
+                        if (err) console.error("Realtime 錯誤詳細資訊:", err);
+                    });
             }
 
             // ── 篩選 ──
