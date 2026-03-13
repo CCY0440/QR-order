@@ -688,6 +688,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const sidebarName = document.querySelector('#sidebar .font-bold.text-lg');
         if (sidebarName) sidebarName.textContent = store.name || '我的餐廳';
 
+        // 側邊欄登入帳號（補上原本缺少的這行）
+        const sidebarEmail = document.getElementById('sidebar-user-email');
+        if (sidebarEmail) sidebarEmail.textContent = user.email || '';
+
         // Toggle 狀態
         updateToggleUI(store.is_open !== false);
     }
@@ -792,11 +796,12 @@ document.addEventListener('DOMContentLoaded', () => {
     loadStoreHeader();
 
     // =============================================
+    // 獨立專頁版：通知與待辦事項檢查
+    // =============================================
     async function checkSetupNotifications() {
         const storeId = await getStoreId();
         if (!storeId) return;
 
-        const { data: { user } } = await window.supabaseClient.auth.getUser();
         const { data: store } = await window.supabaseClient
             .from('stores').select('name, phone, address, logo_url').eq('id', storeId).single();
         const { data: products } = await window.supabaseClient
@@ -806,148 +811,72 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const items = [];
 
-        // 新訂單通知（由 orders.js 即時推入）
-        const newOrderItems = window._pendingBellNotifs || [];
-        newOrderItems.forEach(n => items.push(n));
-
         if (store) {
             if (!store.phone || !store.address) items.push({
-                icon: 'store',
-                title: '完善店家基本資料',
-                desc: '電話與地址尚未填寫',
-                target: 'section-settings',
-                targetTitle: '店家設定'
+                icon: 'store', title: '完善店家基本資料', desc: '電話與地址尚未填寫', target: 'section-settings'
             });
             if (!store.logo_url) items.push({
-                icon: 'image',
-                title: '上傳品牌 Logo',
-                desc: 'Logo 有助提升顧客信任感',
-                target: 'section-settings',
-                targetTitle: '店家設定'
+                icon: 'image', title: '上傳品牌 Logo', desc: 'Logo 有助提升顧客信任感', target: 'section-settings'
             });
         }
         if (!products || products.length === 0) items.push({
-            icon: 'utensils',
-            title: '新增第一道餐點',
-            desc: '菜單目前是空的，顧客無法點餐',
-            target: 'section-menu',
-            targetTitle: '菜單管理'
+            icon: 'utensils', title: '新增第一道餐點', desc: '菜單目前是空的，顧客無法點餐', target: 'section-menu'
         });
         if (!tables || tables.length === 0) items.push({
-            icon: 'qr-code',
-            title: '建立桌號與 QR Code',
-            desc: '還沒有任何桌號，顧客無法掃碼',
-            target: 'section-tables',
-            targetTitle: '桌號管理'
+            icon: 'qr-code', title: '建立桌號與 QR Code', desc: '還沒有任何桌號，顧客無法掃碼', target: 'section-tables'
+        });
+        if (!localStorage.getItem('seen-payment-settings')) items.push({
+            icon: 'banknote', title: '確認付款方式', desc: '請至設定頁確認您的收款方式', target: 'section-settings'
         });
 
-        const hasSeenPaymentSettings = localStorage.getItem('seen-payment-settings');
-        if (!hasSeenPaymentSettings) items.push({
-            icon: 'banknote',
-            title: '確認付款方式設定',
-            desc: '請至設定頁確認您的收款方式',
-            target: 'section-settings',
-            targetTitle: '店家設定'
-        });
-
-        const bellDot = document.getElementById('bell-dot');
-        const notifCount = document.getElementById('notif-count');
-        const notifList = document.getElementById('notif-list');
-        const notifEmpty = document.getElementById('notif-empty');
+        const notifList = document.getElementById('page-notif-list');
+        const notifEmpty = document.getElementById('page-notif-empty');
+        const sidebarBadge = document.getElementById('sidebar-notif-badge');
 
         if (items.length > 0) {
-            bellDot?.classList.remove('hidden');
-            if (notifCount) notifCount.textContent = `${items.length} 項`;
+            if (sidebarBadge) {
+                sidebarBadge.textContent = items.length;
+                sidebarBadge.classList.remove('hidden');
+            }
+            if (notifEmpty) notifEmpty.classList.add('hidden');
             if (notifList) {
                 notifList.innerHTML = items.map(item => `
-                    <button class="notif-item w-full text-left px-5 py-4 hover:bg-emerald-50 transition-colors flex items-start gap-3 ${item.urgent ? 'bg-red-50 hover:bg-red-100 border-b border-red-100' : ''}"
-                        data-target="${item.target}" data-title="${item.targetTitle}" ${item._orderId ? `data-order-id="${item._orderId}"` : ''}>
-                        <div class="w-9 h-9 ${item.urgent ? 'bg-red-100 border-red-200' : 'bg-amber-50 border-amber-100'} border rounded-xl flex items-center justify-center shrink-0 mt-0.5">
-                            <i data-lucide="${item.icon}" class="w-4 h-4 ${item.urgent ? 'text-red-500' : 'text-amber-600'}"></i>
+                    <div class="px-6 py-4 hover:bg-gray-50 transition-colors flex items-start gap-4">
+                        <div class="w-10 h-10 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-center shrink-0">
+                            <i data-lucide="${item.icon}" class="w-5 h-5 text-amber-600"></i>
                         </div>
-                        <div class="flex-1 min-w-0">
-                            <p class="font-bold text-sm ${item.urgent ? 'text-red-700' : 'text-gray-800'}">${item.title}</p>
-                            <p class="text-xs mt-0.5 ${item.urgent ? 'text-red-400' : 'text-gray-400'}">${item.desc}</p>
+                        <div class="flex-1 min-w-0 pt-0.5">
+                            <p class="font-bold text-sm text-gray-800">${item.title}</p>
+                            <p class="text-xs mt-1 text-gray-500">${item.desc}</p>
                         </div>
-                        <i data-lucide="arrow-right" class="w-4 h-4 text-gray-300 shrink-0 mt-1"></i>
-                    </button>`).join('');
+                        <button onclick="document.querySelector('[data-target=\\'${item.target}\\']').click()" 
+                            class="shrink-0 px-3 py-1.5 bg-white border border-gray-200 hover:border-emerald-400 hover:text-emerald-600 rounded-lg text-xs font-bold text-gray-600 transition-colors mt-1">
+                            前往設定
+                        </button>
+                    </div>`).join('');
                 if (typeof lucide !== 'undefined') lucide.createIcons();
-
-                notifList.querySelectorAll('.notif-item').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const targetId = btn.dataset.target;
-                        // 如果是新訂單通知，點擊後清除
-                        if (btn.dataset.orderId) {
-                            window._pendingBellNotifs = (window._pendingBellNotifs || [])
-                                .filter(n => n._orderId !== btn.dataset.orderId);
-                        }
-                        document.querySelector(`[data-target="${targetId}"]`)?.click();
-                        toggleNotifPanel(false);
-                    });
-                });
             }
-            notifEmpty?.classList.add('hidden');
         } else {
-            bellDot?.classList.add('hidden');
-            if (notifCount) notifCount.textContent = '';
+            if (sidebarBadge) sidebarBadge.classList.add('hidden');
             if (notifList) notifList.innerHTML = '';
-            notifEmpty?.classList.remove('hidden');
+            if (notifEmpty) notifEmpty.classList.remove('hidden');
         }
-    }
-
-    function toggleNotifPanel(force) {
-        const panel = document.getElementById('notification-panel');
-        if (!panel) return;
-        const isHidden = panel.classList.contains('hidden');
-        const show = force !== undefined ? force : isHidden;
-        panel.classList.toggle('hidden', !show);
     }
 
     document.getElementById('btn-bell')?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleNotifPanel();
+        e.preventDefault();
+        const bell = document.getElementById('btn-bell');
+        const dot = document.getElementById('bell-dot');
+
+        // 點擊後移除搖晃動畫與紅點（與 staff.html 相同邏輯）
+        if (bell) bell.classList.remove('animate-ring', 'text-emerald-500');
+        if (dot) dot.classList.add('hidden');
+
+        window._pendingBellNotifs = [];
     });
-    document.addEventListener('click', () => toggleNotifPanel(false));
-    document.getElementById('notification-panel')?.addEventListener('click', e => e.stopPropagation());
 
-    // 新訂單即時通知（供 orders.js 呼叫）
-    window.notifyNewOrder = function (order) {
-        if (!window._pendingBellNotifs) window._pendingBellNotifs = [];
-        const num = String(order.daily_number || 0).padStart(3, '0');
-        const time = new Date(order.created_at).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
-        // 避免重複
-        if (window._pendingBellNotifs.find(n => n._orderId === order.id)) return;
-        window._pendingBellNotifs.unshift({
-            _orderId: order.id,
-            icon: 'bell-ring',
-            title: `新訂單 #${num}`,
-            desc: `${order.table_name} · ${time} · NT$ ${order.total_price}`,
-            target: 'section-orders',
-            targetTitle: '訂單管理',
-            urgent: true
-        });
-        // 最多保留 5 筆新訂單通知
-        if (window._pendingBellNotifs.length > 5) window._pendingBellNotifs.pop();
-        // 鈴鐺閃爍
-        const bell = document.getElementById('btn-notifications');
-        bell?.classList.add('animate-bounce');
-        setTimeout(() => bell?.classList.remove('animate-bounce'), 2000);
-        checkSetupNotifications();
-    };
-
-    // 初始化時檢查通知
+    // 初始化呼叫 (確保在大括號內)
     checkSetupNotifications();
-
-    // =============================================
-    // 設定頁載入（目前只有付款，未來可擴充）
-    // =============================================
-    function loadSettings() {
-        // 記錄已造訪過設定頁，讓鈴鐺的付款提示消失
-        if (!localStorage.getItem('seen-payment-settings')) {
-            localStorage.setItem('seen-payment-settings', '1');
-            checkSetupNotifications(); // 重新計算通知數量
-        }
-    }
 
     // =============================================
     // 店員連結
@@ -965,15 +894,14 @@ document.addEventListener('DOMContentLoaded', () => {
             await navigator.clipboard.writeText(link);
             const btn = document.getElementById('btn-copy-staff-link');
             const orig = btn.innerHTML;
-            btn.innerHTML = '<i data-lucide="check" class="w-4 h-4 inline mr-1"></i> 已複製！';
+            btn.innerHTML = '<i data-lucide=\"check\" class=\"w-4 h-4 inline mr-1\"></i> 已複製！';
             lucide.createIcons();
             setTimeout(() => { btn.innerHTML = orig; lucide.createIcons(); }, 2000);
         });
     }
 
-    // 切換到店員管理頁時載入連結
     if (typeof window._staffLinkLoaded === 'undefined') {
         window._staffLinkLoaded = true;
         loadStaffLink();
     }
-});
+}); // 這裡結束 DOMContentLoaded
