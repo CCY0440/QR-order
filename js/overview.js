@@ -50,7 +50,8 @@
 
     function renderStats() {
         const completed = todayOrders.filter(o => o.status === 'completed');
-        const pending = todayOrders.filter(o => ['pending', 'confirmed', 'preparing', 'ready'].includes(o.status));
+        // 修改後的寫法 (拔除 'ready')：
+        const pending = todayOrders.filter(o => ['pending', 'confirmed', 'preparing'].includes(o.status));
         const revenue = completed.reduce((s, o) => s + (o.total_price || 0), 0);
 
         document.getElementById('ov-revenue').textContent = revenue.toLocaleString();
@@ -104,7 +105,7 @@
             const pay = payLabel[order.payment_method] || '現金';
 
             return `
-            <div class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start gap-4 border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+            <div class="fade-in p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start gap-4 border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
 
                 <!-- 左：流水號 + 時間 + 桌號 + 付款 -->
                 <div class="w-20 shrink-0 flex flex-col gap-1.5">
@@ -187,6 +188,9 @@
                     if (full) todayOrders.unshift(full);
                     renderStats();
                     renderOrdersList();
+
+                    // ✅ 加上這行！
+                    if (typeof window.playNotification === 'function') window.playNotification();
                 })
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' },
                 (payload) => {
@@ -207,3 +211,5 @@
         loadOverview();
     }
 })();
+
+// playNotification 統一由 dashboard.html 內的 <script> 定義，此處不重複覆蓋
