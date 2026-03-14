@@ -8,7 +8,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh-tw.js"></script>
     <style>
         body {
             font-family: 'Noto Sans TC', sans-serif;
@@ -33,7 +39,8 @@
         }
 
         /* 內容切換的淡入動畫 */
-        .order-filter-btn {
+        .order-filter-btn,
+        .report-period-btn {
             display: inline-flex;
             align-items: center;
             padding: 6px 12px;
@@ -47,38 +54,15 @@
             transition: all 0.15s;
         }
 
-        .order-filter-btn:hover {
-            border-color: #10b981;
-            color: #059669;
-            background: #ecfdf5;
-        }
-
-        .order-filter-btn.active {
-            border-color: #10b981;
-            color: #059669;
-            background: #ecfdf5;
-        }
-
         .report-period-btn {
-            display: inline-flex;
-            align-items: center;
             padding: 6px 16px;
             font-size: 13px;
-            font-weight: 700;
             border-radius: 10px;
-            border: 1.5px solid #e5e7eb;
-            color: #6b7280;
-            background: white;
-            cursor: pointer;
-            transition: all 0.15s;
         }
 
-        .report-period-btn:hover {
-            border-color: #10b981;
-            color: #059669;
-            background: #ecfdf5;
-        }
-
+        .order-filter-btn:hover,
+        .report-period-btn:hover,
+        .order-filter-btn.active,
         .report-period-btn.active {
             border-color: #10b981;
             color: #059669;
@@ -101,7 +85,6 @@
             }
         }
 
-        /* 改成跟 staff 一樣，動畫作用在 button 本身 */
         .animate-ring {
             animation: ring-bell 0.6s ease-in-out 2;
             transform-origin: top center;
@@ -114,32 +97,146 @@
                 transform: rotate(0deg);
             }
 
-            20% {
-                transform: rotate(15deg);
-            }
-
-            40% {
-                transform: rotate(-10deg);
-            }
-
+            20%,
             60% {
                 transform: rotate(15deg);
             }
 
+            40%,
             80% {
                 transform: rotate(-10deg);
             }
         }
 
+        /* ==========================================
+           🌟 質感升級：表單元件修復區
+           ========================================== */
 
-        /* 全域原生 select 樣式 */
-        select:not(.hidden) {
-            appearance: none;
+        /* 1. 清除所有 select 的預設樣式與舊版箭頭，讓 Tailwind 和 Lucide 接管 */
+        select {
             -webkit-appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 12px center;
-            padding-right: 36px !important;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: none !important;
+            /* 確保移除舊的 SVG 箭頭 */
+        }
+
+        /* 2. 完美隱藏原生 Date Picker 的醜圖示，但保留點擊整格都能彈出日曆的功能 */
+        input[type="date"] {
+            position: relative;
+        }
+
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            /* 把它變透明 */
+            cursor: pointer;
+        }
+
+        /* 隱藏 Safari 的日期清除按鈕 */
+        input[type="date"]::-webkit-clear-button {
+            display: none;
+        }
+
+        /* ==========================================
+           🌟 Flatpickr 高質感綠色主題 (修復版)
+           ========================================== */
+        .flatpickr-calendar {
+            border: 1px solid #f3f4f6 !important;
+            border-radius: 1.2rem !important;
+            /* 大圓角 */
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+            padding: 16px 12px !important;
+            /* 微調內距讓視覺更平衡 */
+            width: auto !important;
+            /* 🌟 解決右側數字被切掉的問題 */
+            box-sizing: border-box !important;
+            font-family: 'Noto Sans TC', sans-serif !important;
+            margin-top: 8px !important;
+        }
+
+        /* 🌟 統一月份與年份的字體粗細與顏色 */
+        .flatpickr-current-month {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding-top: 4px !important;
+        }
+
+        .flatpickr-current-month .flatpickr-monthDropdown-months,
+        .flatpickr-current-month input.cur-year {
+            font-weight: 800 !important;
+            /* 加粗 */
+            color: #374151 !important;
+            font-size: 1.15rem !important;
+        }
+
+        /* 頂部箭頭 */
+        .flatpickr-months .flatpickr-month {
+            color: #374151 !important;
+            fill: #374151 !important;
+            margin-bottom: 12px !important;
+        }
+
+        .flatpickr-prev-month:hover svg,
+        .flatpickr-next-month:hover svg {
+            fill: #10b981 !important;
+            /* 綠色箭頭 */
+        }
+
+        /* 星期標題 */
+        span.flatpickr-weekday {
+            color: #9ca3af !important;
+            font-weight: 700 !important;
+        }
+
+        /* 日期數字 */
+        .flatpickr-day {
+            border-radius: 10px !important;
+            /* 數字變圓角方塊 */
+            font-weight: 700;
+            color: #4b5563;
+        }
+
+        /* 滑過日期的顏色 */
+        .flatpickr-day:hover {
+            background: #ecfdf5 !important;
+            border-color: transparent !important;
+            color: #059669 !important;
+        }
+
+        /* 選中日期的顏色 (品牌翡翠綠) */
+        .flatpickr-day.selected,
+        .flatpickr-day.startRange,
+        .flatpickr-day.endRange,
+        .flatpickr-day.selected.inRange,
+        .flatpickr-day.startRange.inRange,
+        .flatpickr-day.endRange.inRange,
+        .flatpickr-day.selected:focus,
+        .flatpickr-day.startRange:focus,
+        .flatpickr-day.endRange:focus,
+        .flatpickr-day.selected:hover,
+        .flatpickr-day.startRange:hover,
+        .flatpickr-day.endRange:hover,
+        .flatpickr-day.selected.prevMonthDay,
+        .flatpickr-day.startRange.prevMonthDay,
+        .flatpickr-day.endRange.prevMonthDay,
+        .flatpickr-day.selected.nextMonthDay,
+        .flatpickr-day.startRange.nextMonthDay,
+        .flatpickr-day.endRange.nextMonthDay {
+            background: #10b981 !important;
+            border-color: #10b981 !important;
+            color: white !important;
+            box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.4);
+        }
+
+        /* 今天的日期標示 */
+        .flatpickr-day.today {
+            border-color: #10b981 !important;
         }
     </style>
 </head>
@@ -179,6 +276,10 @@
             </a>
 
             <p class="px-3 text-xs font-bold text-gray-400 mb-2 mt-6 tracking-wider">數據與管理</p>
+            <a href="#" data-target="section-history" data-title="歷史訂單"
+                class="nav-link flex items-center gap-3 px-3 py-2.5 text-gray-500 hover:bg-gray-50 hover:text-gray-800 rounded-xl font-medium transition-colors">
+                <i data-lucide="history" class="w-5 h-5"></i> 歷史訂單
+            </a>
             <a href="#" data-target="section-reports" data-title="營收報表"
                 class="nav-link flex items-center gap-3 px-3 py-2.5 text-gray-500 hover:bg-gray-50 hover:text-gray-800 rounded-xl font-medium transition-colors">
                 <i data-lucide="pie-chart" class="w-5 h-5"></i> 營收報表
@@ -242,13 +343,13 @@
 
                 <!-- 營業狀態 Toggle -->
                 <button id="btn-toggle-open"
-                    class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200 font-bold text-sm"
+                    class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all duration-200 font-bold text-xs sm:text-sm"
                     title="點擊切換營業狀態">
-                    <span id="toggle-dot" class="w-2 h-2 rounded-full transition-colors"></span>
+                    <span id="toggle-dot" class="w-2 h-2 rounded-full transition-colors shrink-0"></span>
                     <span id="toggle-label">載入中</span>
                 </button>
 
-                <div class="w-px h-6 bg-gray-200 hidden md:block"></div>
+                <div class="w-px h-6 bg-gray-200"></div>
 
                 <!-- 鈴鐺（完全複製自 staff.html） -->
                 <button id="btn-bell" class="relative p-1.5 text-gray-400 transition-colors" title="查看新訂單">
@@ -304,11 +405,10 @@
                         即時訂單動態
                         <span id="ov-realtime-dot" class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
                     </h3>
-                    <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden min-h-[80px]">
-                        <div id="ov-orders-list" class="divide-y divide-gray-50">
-                            <div class="p-8 text-center text-gray-300">
-                                <i data-lucide="loader" class="w-6 h-6 mx-auto animate-spin"></i>
-                            </div>
+                    <div id="ov-orders-list" class="space-y-4 min-h-[80px]">
+                        <div
+                            class="p-8 text-center text-gray-300 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                            <i data-lucide="loader" class="w-6 h-6 mx-auto animate-spin"></i>
                         </div>
                     </div>
                 </div>
@@ -333,6 +433,7 @@
                         <button class="order-filter-btn" data-status="preparing">製作中</button>
                         <button class="order-filter-btn" data-status="ready">可取餐</button>
                         <button class="order-filter-btn" data-status="completed">已完成</button>
+                        <button class="order-filter-btn" data-status="cancelled">已取消</button>
                     </div>
                 </div>
 
@@ -424,6 +525,71 @@
                     <!-- 由 tables.js 動態渲染 -->
                 </div>
 
+            </div>
+
+            <div id="section-history" class="content-section hidden max-w-6xl mx-auto space-y-5 fade-in">
+                <div
+                    class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-800">歷史訂單查詢</h2>
+                        <p class="text-sm text-gray-500 mt-0.5">選擇日期查看該日所有訂單記錄</p>
+                    </div>
+
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <div class="relative inline-block w-full sm:w-auto group">
+                            <i data-lucide="calendar"
+                                class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 pointer-events-none z-10 group-hover:scale-110 transition-transform"></i>
+                            <input type="text" id="hist-date-input" readonly
+                                class="relative w-full sm:w-44 bg-white border border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-emerald-500 hover:border-emerald-300 transition-all cursor-pointer shadow-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4" id="hist-stats-grid">
+                    <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                        <p class="text-xs font-bold text-gray-400 mb-1">總訂單</p>
+                        <p class="text-2xl font-black text-gray-800"><span id="hist-stat-total">—</span> <span
+                                class="text-sm font-bold text-gray-400">筆</span></p>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                        <p class="text-xs font-bold text-gray-400 mb-1">已完成</p>
+                        <p class="text-2xl font-black text-emerald-600"><span id="hist-stat-completed">—</span> <span
+                                class="text-sm font-bold text-emerald-400">筆</span></p>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                        <p class="text-xs font-bold text-gray-400 mb-1">已取消</p>
+                        <p class="text-2xl font-black text-red-500"><span id="hist-stat-cancelled">—</span> <span
+                                class="text-sm font-bold text-red-300">筆</span></p>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                        <p class="text-xs font-bold text-gray-400 mb-1">當日營業額</p>
+                        <p class="text-xl font-black text-gray-800">NT$ <span id="hist-stat-revenue">—</span></p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div class="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between bg-gray-50/30">
+                        <p id="hist-list-label" class="text-sm font-bold text-gray-500">—</p>
+                        <div class="flex gap-2">
+                            <button
+                                class="hist-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:border-emerald-400 hover:text-emerald-600 transition-all active-hist"
+                                data-status="all">全部</button>
+                            <button
+                                class="hist-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:border-emerald-400 hover:text-emerald-600 transition-all"
+                                data-status="completed">已完成</button>
+                            <button
+                                class="hist-filter-btn text-xs font-bold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:border-emerald-400 hover:text-emerald-600 transition-all"
+                                data-status="cancelled">已取消</button>
+                        </div>
+                    </div>
+
+                    <div id="hist-orders-list" class="divide-y divide-gray-100 min-h-[120px]">
+                        <div class="p-12 text-center text-gray-300">
+                            <i data-lucide="calendar-search" class="w-10 h-10 mx-auto mb-2"></i>
+                            <p class="text-sm font-bold">請選擇日期查詢</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div id="section-reports" class="content-section hidden max-w-6xl mx-auto space-y-6 fade-in">
@@ -580,20 +746,30 @@
                         <i data-lucide="image" class="w-5 h-5 text-emerald-500"></i>
                         <h3 class="font-bold text-gray-800">品牌 Logo</h3>
                     </div>
-                    <div class="p-6 flex items-center gap-6">
+
+                    <div class="p-6 flex flex-col sm:flex-row items-center sm:items-start gap-6">
+
                         <div id="logo-preview-wrap"
-                            class="w-20 h-20 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center bg-gray-50 shrink-0 overflow-hidden">
-                            <i data-lucide="image" class="w-8 h-8 text-gray-300" id="logo-placeholder-icon"></i>
-                            <img id="setting-logo-preview" class="hidden w-full h-full object-cover">
+                            class="w-32 h-32 sm:w-40 sm:h-40 rounded-[1.5rem] border border-gray-200 flex items-center justify-center bg-white shrink-0 overflow-hidden shadow-sm relative">
+                            <i data-lucide="image" class="w-10 h-10 text-gray-300" id="logo-placeholder-icon"></i>
+                            <img id="setting-logo-preview"
+                                class="hidden w-full h-full object-cover absolute inset-0 z-10 bg-white">
                         </div>
-                        <div class="flex-1 space-y-2">
-                            <p class="text-sm text-gray-500">建議尺寸 256×256px 以上，支援 JPG / PNG。</p>
-                            <label
-                                class="inline-flex items-center gap-2 cursor-pointer bg-white border border-gray-200 hover:border-emerald-400 hover:text-emerald-600 text-gray-600 font-bold py-2 px-4 rounded-xl transition-all text-sm">
-                                <i data-lucide="upload" class="w-4 h-4"></i> 選擇圖片
-                                <input type="file" id="setting-logo-file" accept="image/*" class="hidden">
-                            </label>
-                            <p id="logo-upload-status" class="text-xs text-gray-400"></p>
+
+                        <div class="flex-1 space-y-3 text-center sm:text-left flex flex-col justify-center">
+                            <p class="text-sm text-gray-500 leading-relaxed">
+                                建議上傳 <span class="font-bold text-gray-700">512×512px</span> 以上的高解析度圖片，支援 JPG / PNG
+                                格式。<br>
+                                清晰的品牌 Logo 能大幅提升顧客的信任感與點餐體驗。
+                            </p>
+                            <div class="pt-2">
+                                <label
+                                    class="inline-flex items-center justify-center gap-2 cursor-pointer bg-white border border-gray-200 hover:border-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 text-gray-600 font-bold py-2.5 px-6 rounded-xl transition-all text-sm shadow-sm active:scale-95">
+                                    <i data-lucide="upload-cloud" class="w-4 h-4"></i> 選擇圖片
+                                    <input type="file" id="setting-logo-file" accept="image/*" class="hidden">
+                                </label>
+                            </div>
+                            <p id="logo-upload-status" class="text-xs font-bold text-emerald-600"></p>
                         </div>
                     </div>
                 </div>
@@ -677,124 +853,222 @@
             <div id="section-help" class="content-section hidden max-w-3xl mx-auto space-y-6 fade-in">
                 <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                     <h2 class="text-xl font-bold text-gray-800">幫助中心</h2>
-                    <p class="text-sm text-gray-500 mt-1">快速上手指南與常見問題解答。</p>
+                    <p class="text-sm text-gray-500 mt-1">常見操作問題與解答，找不到答案再聯絡我們。</p>
                 </div>
 
                 <!-- 快速入門 -->
                 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                     <div class="px-6 py-4 border-b border-gray-50 flex items-center gap-2">
                         <i data-lucide="rocket" class="w-4 h-4 text-emerald-500"></i>
-                        <h3 class="font-bold text-gray-800">快速入門</h3>
+                        <h3 class="font-bold text-gray-800">快速入門五步驟</h3>
                     </div>
                     <div class="divide-y divide-gray-50">
                         <div class="px-6 py-4 flex gap-4">
                             <span
                                 class="w-6 h-6 bg-emerald-500 text-white text-xs font-black rounded-full flex items-center justify-center shrink-0 mt-0.5">1</span>
                             <div>
-                                <p class="font-bold text-gray-800 text-sm">建立菜單分類</p>
+                                <p class="font-bold text-gray-800 text-sm">建立菜單分類與餐點</p>
                                 <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                                    前往【菜單管理】，先建立分類（例如：主餐、飲料），再新增餐點並上傳圖片。</p>
+                                    前往【菜單管理】點選「分類設定」新增分類（例如：主餐、飲料），再點「新增餐點」逐一上架。建議同時上傳餐點圖片，可有效提升顧客點餐意願。</p>
                             </div>
                         </div>
                         <div class="px-6 py-4 flex gap-4">
                             <span
                                 class="w-6 h-6 bg-emerald-500 text-white text-xs font-black rounded-full flex items-center justify-center shrink-0 mt-0.5">2</span>
                             <div>
-                                <p class="font-bold text-gray-800 text-sm">設定桌號</p>
-                                <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">前往【桌號管理】，輸入桌數，系統自動產生 QR Code。
-                                </p>
+                                <p class="font-bold text-gray-800 text-sm">設定桌號並產生 QR Code</p>
+                                <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">前往【桌號管理】輸入餐廳桌數，系統自動產生每桌專屬 QR
+                                    Code。點選「下載 ZIP」可一次下載全部，列印後貼於桌面。</p>
                             </div>
                         </div>
                         <div class="px-6 py-4 flex gap-4">
                             <span
                                 class="w-6 h-6 bg-emerald-500 text-white text-xs font-black rounded-full flex items-center justify-center shrink-0 mt-0.5">3</span>
                             <div>
-                                <p class="font-bold text-gray-800 text-sm">分享給顧客</p>
-                                <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">下載 QR Code 列印擺放在桌上，顧客掃描即可點餐。</p>
+                                <p class="font-bold text-gray-800 text-sm">設定店家基本資料</p>
+                                <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">前往【店家設定】填寫店名、電話、地址與簡介，並上傳品牌
+                                    Logo，這些資訊都會顯示在顧客的點餐頁面。</p>
                             </div>
                         </div>
                         <div class="px-6 py-4 flex gap-4">
                             <span
                                 class="w-6 h-6 bg-emerald-500 text-white text-xs font-black rounded-full flex items-center justify-center shrink-0 mt-0.5">4</span>
                             <div>
-                                <p class="font-bold text-gray-800 text-sm">分享給店員</p>
-                                <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">前往【員工管理】複製店員連結，店員無需登入即可管理訂單。</p>
+                                <p class="font-bold text-gray-800 text-sm">分享店員連結</p>
+                                <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                                    前往【員工管理】複製專屬連結後分享給店員，店員無需帳號即可登入管理訂單。連結僅在店家「營業中」狀態下有效。</p>
                             </div>
                         </div>
                         <div class="px-6 py-4 flex gap-4">
                             <span
                                 class="w-6 h-6 bg-emerald-500 text-white text-xs font-black rounded-full flex items-center justify-center shrink-0 mt-0.5">5</span>
                             <div>
-                                <p class="font-bold text-gray-800 text-sm">開始營業</p>
-                                <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">點選右上角的【休息中】切換為【營業中】，即可開始接單。</p>
+                                <p class="font-bold text-gray-800 text-sm">切換為營業中開始接單</p>
+                                <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                                    點選右上角的「休息中」按鈕切換為「營業中」，顧客即可掃碼點餐，後台即時收單。每日營業結束後記得切回「休息中」。</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 常見問題 -->
+                <!-- 菜單管理 Q&A -->
                 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                     <div class="px-6 py-4 border-b border-gray-50 flex items-center gap-2">
-                        <i data-lucide="message-circle-question" class="w-4 h-4 text-blue-500"></i>
-                        <h3 class="font-bold text-gray-800">常見問題</h3>
+                        <i data-lucide="book-open" class="w-4 h-4 text-orange-500"></i>
+                        <h3 class="font-bold text-gray-800">菜單管理</h3>
                     </div>
                     <div class="divide-y divide-gray-50">
                         <div class="faq-item px-6 py-4 cursor-pointer select-none"
                             onclick="this.querySelector('.faq-answer').classList.toggle('hidden');this.querySelector('.faq-icon').classList.toggle('rotate-180')">
                             <div class="flex items-center justify-between gap-4">
-                                <p class="font-bold text-gray-800 text-sm">顧客掃 QR Code 後看不到菜單？</p><i
-                                    data-lucide="chevron-down"
+                                <p class="font-bold text-gray-800 text-sm">顧客掃 QR Code 後看不到菜單？</p>
+                                <i data-lucide="chevron-down"
+                                    class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
+                            </div>
+                            <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">最常見的原因有三個：①
+                                菜單中尚未建立分類或餐點；② 餐點狀態為「已停售」；③ 店家目前為「休息中」狀態。請逐一確認後再重新測試。</p>
+                        </div>
+                        <div class="faq-item px-6 py-4 cursor-pointer select-none"
+                            onclick="this.querySelector('.faq-answer').classList.toggle('hidden');this.querySelector('.faq-icon').classList.toggle('rotate-180')">
+                            <div class="flex items-center justify-between gap-4">
+                                <p class="font-bold text-gray-800 text-sm">如何暫停某道餐點的供應？</p>
+                                <i data-lucide="chevron-down"
                                     class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
                             </div>
                             <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">
-                                請確認已建立至少一個分類和一個餐點，並確認餐點為「供應中」狀態。</p>
+                                在【菜單管理】的餐點列表中，點選餐點旁的「供應中」標籤，即可即時切換為「已停售」，顧客點餐頁面會立刻隱藏該餐點，無需重新整理。</p>
                         </div>
                         <div class="faq-item px-6 py-4 cursor-pointer select-none"
                             onclick="this.querySelector('.faq-answer').classList.toggle('hidden');this.querySelector('.faq-icon').classList.toggle('rotate-180')">
                             <div class="flex items-center justify-between gap-4">
-                                <p class="font-bold text-gray-800 text-sm">店員連結的安全性？</p><i data-lucide="chevron-down"
-                                    class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
-                            </div>
-                            <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">連結包含您的店家 ID（UUID
-                                格式，36 位隨機字元），難以被猜測。建議只分享給信任的店員。</p>
-                        </div>
-                        <div class="faq-item px-6 py-4 cursor-pointer select-none"
-                            onclick="this.querySelector('.faq-answer').classList.toggle('hidden');this.querySelector('.faq-icon').classList.toggle('rotate-180')">
-                            <div class="flex items-center justify-between gap-4">
-                                <p class="font-bold text-gray-800 text-sm">訂單即時通知沒有更新？</p><i data-lucide="chevron-down"
-                                    class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
-                            </div>
-                            <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">請確認 Supabase 專案已開啟
-                                Realtime 功能，並將 orders 和 stores 表加入 Realtime 發布清單（Supabase Dashboard > Database >
-                                Replication）。</p>
-                        </div>
-                        <div class="faq-item px-6 py-4 cursor-pointer select-none"
-                            onclick="this.querySelector('.faq-answer').classList.toggle('hidden');this.querySelector('.faq-icon').classList.toggle('rotate-180')">
-                            <div class="flex items-center justify-between gap-4">
-                                <p class="font-bold text-gray-800 text-sm">顧客點餐後狀態一直是「待付款」？</p><i
-                                    data-lucide="chevron-down"
+                                <p class="font-bold text-gray-800 text-sm">可以幫餐點設定加料或客製化選項嗎？</p>
+                                <i data-lucide="chevron-down"
                                     class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
                             </div>
                             <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">
-                                店員或店家需在訂單管理點選「標記已付款」，系統才會自動推進到製作中。</p>
+                                可以！新增或編輯餐點時，下方有「客製化選項」功能，可設定單選（如：辣度）、多選（如：加料）或自由備註欄位，並可個別設定是否為必填，以及額外加收費用。</p>
                         </div>
                         <div class="faq-item px-6 py-4 cursor-pointer select-none"
                             onclick="this.querySelector('.faq-answer').classList.toggle('hidden');this.querySelector('.faq-icon').classList.toggle('rotate-180')">
                             <div class="flex items-center justify-between gap-4">
-                                <p class="font-bold text-gray-800 text-sm">如何暫停某道餐點供應？</p><i data-lucide="chevron-down"
+                                <p class="font-bold text-gray-800 text-sm">刪除分類後，底下的餐點會消失嗎？</p>
+                                <i data-lucide="chevron-down"
                                     class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
                             </div>
                             <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">
-                                在【菜單管理】的餐點列表中，點選「供應中」標籤即可切換為「已停售」，顧客的點餐頁面會即時隱藏該餐點。</p>
+                                刪除分類前系統會提示確認，若分類底下仍有餐點，需先將餐點移至其他分類或刪除，才能刪除該分類，以避免資料遺失。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 訂單管理 Q&A -->
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-50 flex items-center gap-2">
+                        <i data-lucide="receipt" class="w-4 h-4 text-blue-500"></i>
+                        <h3 class="font-bold text-gray-800">訂單管理</h3>
+                    </div>
+                    <div class="divide-y divide-gray-50">
+                        <div class="faq-item px-6 py-4 cursor-pointer select-none"
+                            onclick="this.querySelector('.faq-answer').classList.toggle('hidden');this.querySelector('.faq-icon').classList.toggle('rotate-180')">
+                            <div class="flex items-center justify-between gap-4">
+                                <p class="font-bold text-gray-800 text-sm">顧客點完餐後，店家要怎麼操作？</p>
+                                <i data-lucide="chevron-down"
+                                    class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
+                            </div>
+                            <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">
+                                訂單進來後狀態為「未付款」，店家可在【訂單管理】或【總覽大廳】看到新訂單通知。先點「標記已付款」確認收款，再點「確認並製作」送廚房，出餐後點「製作完成」，顧客取餐後點「完成取餐」，流程即告完成。
+                            </p>
                         </div>
                         <div class="faq-item px-6 py-4 cursor-pointer select-none"
                             onclick="this.querySelector('.faq-answer').classList.toggle('hidden');this.querySelector('.faq-icon').classList.toggle('rotate-180')">
                             <div class="flex items-center justify-between gap-4">
-                                <p class="font-bold text-gray-800 text-sm">忘記帳號密碼怎麼辦？</p><i data-lucide="chevron-down"
+                                <p class="font-bold text-gray-800 text-sm">如何拒絕或取消一筆訂單？</p>
+                                <i data-lucide="chevron-down"
                                     class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
                             </div>
-                            <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">在登入頁點選「忘記密碼」，輸入
-                                Email 後系統會寄送重設連結到您的信箱。</p>
+                            <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">
+                                在訂單卡片或明細彈窗中，「待付款」狀態的訂單旁會顯示「拒絕接單」按鈕，確認後訂單狀態將改為「已取消」。請注意此操作目前無法復原，請謹慎使用。</p>
+                        </div>
+                        <div class="faq-item px-6 py-4 cursor-pointer select-none"
+                            onclick="this.querySelector('.faq-answer').classList.toggle('hidden');this.querySelector('.faq-icon').classList.toggle('rotate-180')">
+                            <div class="flex items-center justify-between gap-4">
+                                <p class="font-bold text-gray-800 text-sm">新訂單進來沒有聲音通知？</p>
+                                <i data-lucide="chevron-down"
+                                    class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
+                            </div>
+                            <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">
+                                瀏覽器需要使用者主動點擊過頁面，才允許自動播放音效。建議開啟後台後先隨意點一下畫面，即可解鎖聲音。另外請確認裝置音量未靜音。</p>
+                        </div>
+                        <div class="faq-item px-6 py-4 cursor-pointer select-none"
+                            onclick="this.querySelector('.faq-answer').classList.toggle('hidden');this.querySelector('.faq-icon').classList.toggle('rotate-180')">
+                            <div class="flex items-center justify-between gap-4">
+                                <p class="font-bold text-gray-800 text-sm">訂單即時更新停止了？</p>
+                                <i data-lucide="chevron-down"
+                                    class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
+                            </div>
+                            <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">
+                                通常是網路暫時中斷或瀏覽器休眠所致。請重新整理頁面（F5 或下拉重整），系統會自動重新連線並補全最新訂單。若持續發生請聯絡我們。</p>
+                        </div>
+                        <div class="faq-item px-6 py-4 cursor-pointer select-none"
+                            onclick="this.querySelector('.faq-answer').classList.toggle('hidden');this.querySelector('.faq-icon').classList.toggle('rotate-180')">
+                            <div class="flex items-center justify-between gap-4">
+                                <p class="font-bold text-gray-800 text-sm">可以查看昨天或之前的訂單嗎？</p>
+                                <i data-lucide="chevron-down"
+                                    class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
+                            </div>
+                            <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">
+                                可以！側邊欄【歷史訂單】功能可查詢任一日期的訂單，並支援依狀態篩選（已完成 / 已取消），同時顯示當日的營業額、完成數與取消數摘要。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 帳號與系統 Q&A -->
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-50 flex items-center gap-2">
+                        <i data-lucide="settings-2" class="w-4 h-4 text-purple-500"></i>
+                        <h3 class="font-bold text-gray-800">帳號與系統</h3>
+                    </div>
+                    <div class="divide-y divide-gray-50">
+                        <div class="faq-item px-6 py-4 cursor-pointer select-none"
+                            onclick="this.querySelector('.faq-answer').classList.toggle('hidden');this.querySelector('.faq-icon').classList.toggle('rotate-180')">
+                            <div class="flex items-center justify-between gap-4">
+                                <p class="font-bold text-gray-800 text-sm">忘記帳號密碼怎麼辦？</p>
+                                <i data-lucide="chevron-down"
+                                    class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
+                            </div>
+                            <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">
+                                在登入頁點選「忘記密碼？」，輸入註冊時使用的 Email，系統會寄送密碼重設連結。點擊信中連結後，系統會導向重設頁面讓您設定新密碼。</p>
+                        </div>
+                        <div class="faq-item px-6 py-4 cursor-pointer select-none"
+                            onclick="this.querySelector('.faq-answer').classList.toggle('hidden');this.querySelector('.faq-icon').classList.toggle('rotate-180')">
+                            <div class="flex items-center justify-between gap-4">
+                                <p class="font-bold text-gray-800 text-sm">一個帳號可以管理多間店嗎？</p>
+                                <i data-lucide="chevron-down"
+                                    class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
+                            </div>
+                            <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">
+                                目前每個帳號對應一間店家，若您有多間分店的需求，請分別註冊不同帳號，或聯絡我們討論企業方案。</p>
+                        </div>
+                        <div class="faq-item px-6 py-4 cursor-pointer select-none"
+                            onclick="this.querySelector('.faq-answer').classList.toggle('hidden');this.querySelector('.faq-icon').classList.toggle('rotate-180')">
+                            <div class="flex items-center justify-between gap-4">
+                                <p class="font-bold text-gray-800 text-sm">店員連結可以設定權限或有效期限嗎？</p>
+                                <i data-lucide="chevron-down"
+                                    class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
+                            </div>
+                            <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">店員連結目前綁定店家
+                                ID，在「休息中」狀態下連結會自動失效，無法操作訂單。若擔心連結外洩，可聯絡我們申請重置店家 ID。</p>
+                        </div>
+                        <div class="faq-item px-6 py-4 cursor-pointer select-none"
+                            onclick="this.querySelector('.faq-answer').classList.toggle('hidden');this.querySelector('.faq-icon').classList.toggle('rotate-180')">
+                            <div class="flex items-center justify-between gap-4">
+                                <p class="font-bold text-gray-800 text-sm">系統支援哪些裝置與瀏覽器？</p>
+                                <i data-lucide="chevron-down"
+                                    class="faq-icon w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"></i>
+                            </div>
+                            <p class="faq-answer hidden text-xs text-gray-500 mt-2 leading-relaxed">
+                                後台管理介面支援桌機、平板與手機，建議使用 Chrome、Safari 或 Edge 最新版本以獲得最佳體驗。顧客點餐頁面針對手機掃碼場景優化，iOS 與 Android
+                                均可正常使用。</p>
                         </div>
                     </div>
                 </div>
@@ -807,12 +1081,12 @@
                     </div>
                     <div class="flex-1">
                         <p class="font-bold text-gray-800">還有其他問題？</p>
-                        <p class="text-sm text-gray-500 mt-0.5">歡迎透過 Email 聯絡技術支援，我們會在 1 個工作天內回覆。</p>
+                        <p class="text-sm text-gray-500 mt-0.5">填寫表單，我們將寄送信件至客服信箱並盡快回覆。</p>
                     </div>
-                    <a href="/cdn-cgi/l/email-protection#bfcccacfcfd0cdcbffdac7ded2cfd3da91dcd0d2"
-                        class="shrink-0 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl text-sm transition-all active:scale-95">
-                        聯絡我們
-                    </a>
+                    <button id="btn-open-contact"
+                        class="shrink-0 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl text-sm transition-all active:scale-95 flex items-center gap-2 shadow-sm shadow-emerald-500/20">
+                        <i data-lucide="pen-line" class="w-4 h-4"></i> 填寫表單
+                    </button>
                 </div>
             </div>
             <div id="section-announcements" class="content-section hidden max-w-5xl mx-auto space-y-6 fade-in pb-12">
@@ -941,7 +1215,7 @@
                             <input type="text" id="input-product-name" placeholder="例如：松露野菇燉飯"
                                 class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-gray-800">
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-bold text-gray-700 mb-1.5">價格 (NT$) <span
                                         class="text-red-500">*</span></label>
@@ -951,16 +1225,18 @@
                             <div>
                                 <label class="block text-sm font-bold text-gray-700 mb-1.5">所屬分類 <span
                                         class="text-red-500">*</span></label>
-                                <select id="select-product-category" class="hidden"></select>
-                                <div class="relative" id="custom-select-wrapper">
-                                    <button type="button" id="custom-select-btn"
-                                        class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-gray-800 flex justify-between items-center text-left">
-                                        <span id="custom-select-text" class="text-gray-400">請選擇分類...</span>
-                                        <i data-lucide="chevron-down"
-                                            class="w-4 h-4 text-gray-400 transition-transform duration-200"
-                                            id="custom-select-icon"></i>
+                                <div class="relative" id="custom-category-wrapper">
+                                    <input type="hidden" id="input-product-category" value="">
+
+                                    <button type="button" id="btn-custom-category"
+                                        class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-left flex items-center justify-between shadow-sm cursor-pointer">
+                                        <span id="text-custom-category"
+                                            class="text-gray-400 font-bold truncate">請選擇分類...</span>
+                                        <i data-lucide="chevron-down" id="icon-custom-category"
+                                            class="w-4 h-4 text-gray-400 transition-transform duration-200 shrink-0"></i>
                                     </button>
-                                    <div id="custom-select-options"
+
+                                    <div id="list-custom-category"
                                         class="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-xl shadow-xl max-h-48 overflow-y-auto hidden opacity-0 transition-all duration-200 transform -translate-y-2">
                                     </div>
                                 </div>
@@ -975,24 +1251,33 @@
                     </div>
 
                     <!-- 右上：餐點圖片 -->
-                    <div class="order-1 md:order-2 flex flex-col gap-2">
-                        <label class="block text-sm font-bold text-gray-700">餐點圖片 <span
-                                class="font-normal text-gray-400 text-xs">（選填）</span></label>
-                        <div id="product-image-upload-area"
-                            class="border-2 border-dashed border-gray-300 rounded-2xl flex-1 min-h-[170px] flex flex-col items-center justify-center text-gray-400 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-500 cursor-pointer transition-colors group bg-gray-50 overflow-hidden relative">
-                            <img id="product-image-preview"
-                                class="absolute inset-0 w-full h-full object-cover hidden" />
-                            <button id="btn-remove-product-image"
-                                class="absolute top-2 right-2 z-10 w-7 h-7 bg-red-500 hover:bg-red-600 text-white rounded-full hidden items-center justify-center transition-colors shadow-md">
-                                <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                            </button>
-                            <div id="product-upload-placeholder" class="flex flex-col items-center pointer-events-none">
-                                <i data-lucide="image-plus" class="w-8 h-8 mb-2"></i>
-                                <span class="text-sm font-bold">點擊上傳圖片</span>
-                                <span class="text-xs mt-1 opacity-70">建議比例 4:3 或 1:1</span>
+                    <div class="sm:col-span-2">
+                        <label class="block text-sm font-bold text-gray-700 mb-1.5">餐點圖片 <span
+                                class="font-normal text-gray-400">（選填）</span></label>
+
+                        <div id="product-image-area"
+                            class="relative w-full h-48 sm:h-56 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 hover:border-emerald-400 hover:bg-emerald-50/30 transition-colors group flex flex-col items-center justify-center overflow-hidden cursor-pointer">
+
+                            <div id="product-image-placeholder" class="text-center p-4">
+                                <div
+                                    class="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center mx-auto mb-3 text-gray-400 group-hover:text-emerald-500 group-hover:scale-110 transition-transform">
+                                    <i data-lucide="image" class="w-6 h-6"></i>
+                                </div>
+                                <p class="text-sm font-bold text-gray-600 mb-1">點擊或拖曳上傳圖片</p>
+                                <p class="text-xs text-gray-400">建議比例 4:3，支援 JPG / PNG</p>
                             </div>
+
+                            <img id="product-image-preview" src=""
+                                class="absolute inset-0 w-full h-full object-cover hidden z-10">
+
+                            <button type="button" id="btn-remove-product-image"
+                                class="absolute top-3 right-3 z-20 w-8 h-8 bg-white/90 backdrop-blur-sm text-gray-500 hover:text-red-500 hover:bg-red-50 border border-gray-100 rounded-xl flex items-center justify-center shadow-sm transition-all hidden active:scale-95"
+                                title="移除圖片">
+                                <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
+                            </button>
+
+                            <input type="file" id="input-product-image" accept="image/*" class="hidden">
                         </div>
-                        <input type="file" id="product-file-input" class="hidden" accept="image/*">
                     </div>
                 </div>
 
@@ -1023,6 +1308,80 @@
                     class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-8 rounded-xl transition-all shadow-sm shadow-emerald-500/20 active:scale-95 flex items-center gap-2">
                     <i data-lucide="save" class="w-4 h-4"></i> 儲存上架
                 </button>
+            </div>
+        </div>
+    </div>
+    <div id="modal-contact"
+        class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm hidden transition-opacity duration-300 opacity-0">
+        <div class="bg-white w-full max-w-md rounded-[24px] shadow-2xl overflow-hidden transform transition-all duration-300 scale-95 opacity-0 flex flex-col"
+            id="modal-contact-content">
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
+                <h3 class="font-bold text-gray-800 flex items-center gap-2 text-lg">
+                    <i data-lucide="mail" class="w-5 h-5 text-emerald-500"></i> 聯絡我們
+                </h3>
+                <button id="btn-close-contact"
+                    class="text-gray-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p
+                    class="text-sm text-gray-500 bg-emerald-50 text-emerald-700 p-3 rounded-xl border border-emerald-100">
+                    信件將會發送至客服專線<br>
+                </p>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1.5">您的聯絡信箱 <span
+                            class="text-red-500">*</span></label>
+                    <input type="email" id="contact-email" placeholder="example@email.com"
+                        class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-gray-800">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1.5">問題描述 <span
+                            class="text-red-500">*</span></label>
+                    <textarea id="contact-message" rows="4" placeholder="請詳細描述您的問題或建議..."
+                        class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-gray-800 resize-none"></textarea>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/80 flex justify-end gap-3 shrink-0">
+                <button id="btn-cancel-contact"
+                    class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-2.5 px-6 rounded-xl transition-all shadow-sm active:scale-95 text-sm">取消</button>
+                <button id="btn-send-contact"
+                    class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-6 rounded-xl transition-all shadow-sm shadow-emerald-500/20 active:scale-95 flex items-center gap-2 text-sm">
+                    <i data-lucide="send" class="w-4 h-4"></i> 送出訊息
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-crop"
+        class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white w-full max-w-lg rounded-[24px] shadow-2xl flex flex-col overflow-hidden scale-95 opacity-0 transition-all duration-300"
+            id="modal-crop-content">
+
+            <div class="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 class="font-black text-gray-800 flex items-center gap-2">
+                    <i data-lucide="crop" class="w-5 h-5 text-emerald-500"></i> 裁切餐點圖片
+                </h3>
+                <button id="btn-close-crop"
+                    class="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="w-full h-[50vh] sm:h-[60vh] bg-gray-900 relative">
+                <img id="image-to-crop" src="" class="block max-w-full">
+            </div>
+
+            <div class="p-4 bg-white flex justify-between items-center shrink-0">
+                <p class="text-xs text-gray-400 hidden sm:block">請拖曳框線選取最佳範圍（預設 1:1 比例）</p>
+                <div class="flex gap-3 w-full sm:w-auto">
+                    <button id="btn-cancel-crop"
+                        class="flex-1 sm:flex-none px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition-colors active:scale-95">取消</button>
+                    <button id="btn-confirm-crop"
+                        class="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-emerald-500 text-white font-bold hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2 active:scale-95 shadow-md shadow-emerald-500/20">
+                        <i data-lucide="check" class="w-4 h-4"></i> 確認裁切
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -1068,6 +1427,7 @@
     <script src="./js/table.js"></script>
     <script src="./js/orders.js"></script>
     <script src="./js/overview.js"></script>
+    <script src="./js/history.js"></script>
     <script src="./js/reports.js"></script>
     <script src="./js/staff.js"></script>
 </body>
