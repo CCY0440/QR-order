@@ -1,10 +1,11 @@
-// js/dashboard.js
-
+// =============================================
+// dashboard.js — 完整升級版 (含自訂分類選單與圖片裁切)
+// =============================================
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof lucide !== 'undefined') lucide.createIcons();
 
     // ==========================================
-    // 🌟 全域客製化對話框系統 (AppDialog)
+    // 全域客製化對話框系統 (AppDialog)
     // ==========================================
     window.AppDialog = {
         show: function (options) {
@@ -21,7 +22,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 title.textContent = options.title || '提示';
                 msg.textContent = options.message || '';
 
-                // 設定主題顏色與圖示
                 if (options.type === 'danger') {
                     icon.setAttribute('data-lucide', 'alert-triangle');
                     iconContainer.className = 'w-16 h-16 rounded-full flex items-center justify-center mb-5 shrink-0 bg-red-100 text-red-600';
@@ -40,14 +40,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (options.showCancel) btnCancel.classList.remove('hidden');
                 else btnCancel.classList.add('hidden');
 
-                // 動畫開啟
                 modal.classList.remove('hidden');
                 setTimeout(() => {
                     modal.classList.remove('opacity-0');
                     content.classList.remove('scale-95', 'opacity-0');
                 }, 10);
 
-                // 綁定按鈕事件
                 const closeAndResolve = (result) => {
                     modal.classList.add('opacity-0');
                     content.classList.add('scale-95', 'opacity-0');
@@ -72,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ==========================================
-    // 側邊欄與 SPA 切換邏輯 (維持不變)
+    // 側邊欄與 SPA 切換邏輯
     // ==========================================
     const sidebar = document.getElementById('sidebar');
     const openBtn = document.getElementById('open-sidebar');
@@ -131,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (targetId === 'section-orders' && typeof window.loadOrders === 'function') window.loadOrders();
             if (targetId === 'section-reports' && typeof window.loadReports === 'function') window.loadReports();
             if (targetId === 'section-employees' && typeof window.loadStaff === 'function') window.loadStaff();
+            if (targetId === 'section-history' && typeof window.initHistory === 'function') window.initHistory();
             if (window.innerWidth < 1024) toggleSidebar();
         });
     });
@@ -151,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let editingProductId = null;
 
     // ==========================================
-    // 載入與渲染大菜單 (維持不變)
+    // 載入與渲染大菜單
     // ==========================================
     async function loadMenu() {
         const container = document.getElementById('menu-list-container');
@@ -161,13 +160,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const storeId = await getStoreId();
             if (!storeId) return;
 
-            // 分類
-            const { data: cats } = await window.supabaseClient
-                .from('categories').select('id, name').eq('store_id', storeId);
+            const { data: cats } = await window.supabaseClient.from('categories').select('id, name').eq('store_id', storeId);
             const catMap = {};
             (cats || []).forEach(c => { catMap[c.id] = c.name; });
 
-            // 商品（不用 FK join）
             const { data: products, error } = await window.supabaseClient
                 .from('products')
                 .select('id, category_id, name, price, description, image_url, is_available')
@@ -199,8 +195,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 items.forEach(p => {
                     const statusHtml = p.is_available
-                        ? `<span class="inline-flex items-center px-2 py-1 bg-emerald-50 text-emerald-600 text-[11px] font-bold rounded-md border border-emerald-100 cursor-pointer hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-colors btn-toggle-available" data-id="${p.id}" data-available="true">供應中</span>`
-                        : `<span class="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-400 text-[11px] font-bold rounded-md border border-gray-200 cursor-pointer hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-100 transition-colors btn-toggle-available" data-id="${p.id}" data-available="false">已停售</span>`;
+                        ? `<span class="inline-flex items-center justify-center w-14 py-1 bg-emerald-50 text-emerald-600 text-[11px] font-bold rounded-md border border-emerald-200 cursor-pointer hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors btn-toggle-available" data-id="${p.id}" data-available="true">供應中</span>`
+                        : `<span class="inline-flex items-center justify-center w-14 py-1 bg-red-50 text-red-500 text-[11px] font-bold rounded-md border border-red-200 cursor-pointer hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-colors btn-toggle-available" data-id="${p.id}" data-available="false">已停售</span>`;
+
                     html += `<tr class="hover:bg-gray-50/50 transition-colors group"><td class="p-3 pl-5 font-bold text-gray-800">${p.name}</td><td class="p-3 font-mono text-gray-600">NT$ ${p.price}</td><td class="p-3">${statusHtml}</td><td class="p-3 text-right pr-5 opacity-0 group-hover:opacity-100 transition-opacity"><button onclick="editProduct('${p.id}')" class="text-gray-400 hover:text-emerald-600 p-1.5 rounded transition-colors" title="編輯"><i data-lucide="edit-3" class="w-4 h-4"></i></button><button onclick="deleteProduct('${p.id}', '${p.name}', '${p.image_url || ''}')" class="text-gray-400 hover:text-red-500 p-1.5 rounded transition-colors" title="刪除"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`;
                 });
                 html += `</tbody></table></div></div>`;
@@ -209,18 +206,16 @@ document.addEventListener('DOMContentLoaded', () => {
             container.innerHTML = html;
             lucide.createIcons();
 
-            // 供應狀態切換
             container.querySelectorAll('.btn-toggle-available').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     const id = btn.dataset.id;
-                    const cur = btn.dataset.available === 'true';
-                    const next = !cur;
+                    const next = btn.dataset.available !== 'true';
                     btn.dataset.available = String(next);
                     if (next) {
-                        btn.className = btn.className.replace('bg-gray-100 text-gray-400 border-gray-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-100', 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-red-50 hover:text-red-500 hover:border-red-100');
+                        btn.className = "inline-flex items-center justify-center w-14 py-1 bg-emerald-50 text-emerald-600 text-[11px] font-bold rounded-md border border-emerald-200 cursor-pointer hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors btn-toggle-available";
                         btn.textContent = '供應中';
                     } else {
-                        btn.className = btn.className.replace('bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-red-50 hover:text-red-500 hover:border-red-100', 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-100');
+                        btn.className = "inline-flex items-center justify-center w-14 py-1 bg-red-50 text-red-500 text-[11px] font-bold rounded-md border border-red-200 cursor-pointer hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-colors btn-toggle-available";
                         btn.textContent = '已停售';
                     }
                     await window.supabaseClient.from('products').update({ is_available: next }).eq('id', id);
@@ -233,9 +228,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ==========================================
-    // 刪除與預覽功能 (升級為自訂提示框)
-    // ==========================================
     window.deleteProduct = async (id, name, imageUrl) => {
         const confirmed = await AppDialog.confirm(`確定要刪除餐點「${name}」嗎？\n(此動作無法復原)`, 'danger', '刪除餐點');
         if (!confirmed) return;
@@ -356,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ==========================================
-    // 新增/編輯餐點 Modal (🌟 升級自訂下拉選單)
+    // 🌟 新增/編輯餐點 Modal (全自訂分類下拉選單 + 裁切)
     // ==========================================
     const modalProduct = document.getElementById('modal-product');
     const modalProductContent = document.getElementById('modal-product-content');
@@ -367,67 +359,104 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const inputProductName = document.getElementById('input-product-name');
     const inputProductPrice = document.getElementById('input-product-price');
-    const selectProductCategory = document.getElementById('select-product-category'); // 隱藏的真實 select
     const inputProductDesc = document.getElementById('input-product-desc');
 
-    const productUploadArea = document.getElementById('product-image-upload-area');
-    const productFileInput = document.getElementById('product-file-input');
+    const productUploadArea = document.getElementById('product-image-area');
+    const productFileInput = document.getElementById('input-product-image');
     const productImgPreview = document.getElementById('product-image-preview');
-    const productUploadPlaceholder = document.getElementById('product-upload-placeholder');
+    const productUploadPlaceholder = document.getElementById('product-image-placeholder');
     const btnRemoveProductImage = document.getElementById('btn-remove-product-image');
 
     let currentProductImageFile = null;
+    let currentSelectedCategoryId = ''; // 用來儲存當前選擇的分類ID
 
-    // 🌟 自訂下拉選單的互動邏輯
-    const customSelectBtn = document.getElementById('custom-select-btn');
-    const customSelectText = document.getElementById('custom-select-text');
-    const customSelectOptions = document.getElementById('custom-select-options');
-    const customSelectIcon = document.getElementById('custom-select-icon');
+    // 🌟 自訂分類選單邏輯
+    const categoryWrapper = document.getElementById('custom-category-wrapper');
+    const categoryBtn = document.getElementById('btn-custom-category');
+    const categoryText = document.getElementById('text-custom-category');
+    const categoryList = document.getElementById('list-custom-category');
+    const categoryIcon = document.getElementById('icon-custom-category');
 
-    // 點擊空白處自動關閉下拉選單
+    if (categoryBtn) {
+        categoryBtn.onclick = (e) => {
+            e.stopPropagation();
+            const isHidden = categoryList.classList.contains('hidden');
+            if (isHidden) {
+                categoryList.classList.remove('hidden');
+                setTimeout(() => {
+                    categoryList.classList.remove('opacity-0', '-translate-y-2');
+                    categoryIcon.classList.add('rotate-180');
+                }, 10);
+            } else {
+                closeCustomCategory();
+            }
+        };
+    }
+
+    function closeCustomCategory() {
+        if (!categoryList) return;
+        categoryList.classList.add('opacity-0', '-translate-y-2');
+        categoryIcon.classList.remove('rotate-180');
+        setTimeout(() => categoryList.classList.add('hidden'), 200);
+    }
+
     document.addEventListener('click', (e) => {
-        const wrapper = document.getElementById('custom-select-wrapper');
-        if (wrapper && !wrapper.contains(e.target) && customSelectOptions) {
-            customSelectOptions.classList.add('hidden', 'opacity-0', '-translate-y-2');
-            if (customSelectIcon) customSelectIcon.classList.remove('rotate-180');
+        if (categoryWrapper && !categoryWrapper.contains(e.target)) {
+            closeCustomCategory();
         }
     });
 
-    if (customSelectBtn) {
-        customSelectBtn.addEventListener('click', () => {
-            const isHidden = customSelectOptions.classList.contains('hidden');
-            if (isHidden) {
-                customSelectOptions.classList.remove('hidden');
-                setTimeout(() => customSelectOptions.classList.remove('opacity-0', '-translate-y-2'), 10);
-                customSelectIcon.classList.add('rotate-180');
-            } else {
-                customSelectOptions.classList.add('opacity-0', '-translate-y-2');
-                customSelectIcon.classList.remove('rotate-180');
-                setTimeout(() => customSelectOptions.classList.add('hidden'), 200);
-            }
-        });
+    async function populateCategorySelect() {
+        const storeId = await getStoreId();
+        if (!storeId) return;
+        const { data: categories } = await window.supabaseClient.from('categories').select('id, name').eq('store_id', storeId);
+
+        if (categories && categories.length > 0) {
+            categoryList.innerHTML = categories.map(c => `
+                <div class="px-5 py-3 text-sm font-bold text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 transition-colors cursor-pointer border-b border-gray-50 last:border-0" data-value="${c.id}" data-name="${c.name}">
+                    ${c.name}
+                </div>
+            `).join('');
+
+            categoryList.querySelectorAll('div').forEach(opt => {
+                opt.onclick = (e) => {
+                    e.stopPropagation();
+                    currentSelectedCategoryId = opt.getAttribute('data-value');
+                    categoryText.textContent = opt.getAttribute('data-name');
+                    categoryText.classList.remove('text-gray-400');
+                    categoryText.classList.add('text-gray-800');
+                    closeCustomCategory();
+                };
+            });
+        } else {
+            categoryList.innerHTML = '<div class="p-4 text-sm font-bold text-gray-400 text-center">請先建立分類</div>';
+        }
     }
 
+    // 清空表單
     function resetProductForm() {
         editingProductId = null;
         inputProductName.value = '';
         inputProductPrice.value = '';
-        selectProductCategory.value = '';
-        window._selectedCategoryId = '';
         inputProductDesc.value = '';
+
+        currentSelectedCategoryId = '';
+        if (categoryText) {
+            categoryText.textContent = '請選擇分類...';
+            categoryText.classList.replace('text-gray-800', 'text-gray-400');
+        }
+
         if (typeof window.clearProductOptions === 'function') window.clearProductOptions();
-        // 恢復自訂選單外觀
-        customSelectText.textContent = '請選擇分類...';
-        customSelectText.classList.add('text-gray-400');
-        customSelectText.classList.remove('text-gray-800');
 
         currentProductImageFile = null;
-        productImgPreview.src = '';
-        productImgPreview.dataset.oldUrl = '';
-        productImgPreview.classList.add('hidden');
-        productUploadPlaceholder.classList.remove('hidden');
-        btnRemoveProductImage.classList.add('hidden');
-        productFileInput.value = '';
+        if (productImgPreview) {
+            productImgPreview.src = '';
+            productImgPreview.dataset.oldUrl = '';
+            productImgPreview.classList.add('hidden');
+        }
+        if (productUploadPlaceholder) productUploadPlaceholder.classList.remove('hidden');
+        if (btnRemoveProductImage) btnRemoveProductImage.classList.add('hidden');
+        if (productFileInput) productFileInput.value = '';
 
         document.querySelector('#modal-product h3').innerHTML = '<i data-lucide="utensils-crossed" class="w-5 h-5 text-emerald-500"></i> 新增餐點';
         btnSaveProduct.innerHTML = '儲存上架';
@@ -456,45 +485,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnCloseProductModal) btnCloseProductModal.addEventListener('click', () => toggleProductModal(false));
     if (btnCancelProduct) btnCancelProduct.addEventListener('click', () => toggleProductModal(false));
 
-    // 🌟 將分類資料塞入自訂下拉選單
-    async function populateCategorySelect() {
-        const storeId = await getStoreId();
-        if (!storeId) return;
-        const { data: categories } = await window.supabaseClient.from('categories').select('id, name').eq('store_id', storeId);
-
-        if (categories && categories.length > 0) {
-            let optionsHtml = '<div class="py-1.5">';
-            categories.forEach(c => {
-                optionsHtml += `<button type="button" class="w-full text-left px-5 py-3 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 transition-colors border-b border-gray-50 last:border-0" data-value="${c.id}">${c.name}</button>`;
-            });
-            optionsHtml += '</div>';
-            customSelectOptions.innerHTML = optionsHtml;
-
-            // 綁定點擊事件
-            const customOptions = customSelectOptions.querySelectorAll('button');
-            customOptions.forEach(opt => {
-                opt.addEventListener('click', (e) => {
-                    const val = e.target.getAttribute('data-value');
-                    // 同步到隱藏的真實 select 並存到全域變數（兩種方式確保有效）
-                    selectProductCategory.value = val;
-                    window._selectedCategoryId = val;
-
-                    // 更新畫面上顯示的文字
-                    customSelectText.textContent = e.target.textContent;
-                    customSelectText.classList.remove('text-gray-400');
-                    customSelectText.classList.add('text-gray-800', 'font-medium');
-
-                    // 收起選單
-                    customSelectOptions.classList.add('opacity-0', '-translate-y-2');
-                    customSelectIcon.classList.remove('rotate-180');
-                    setTimeout(() => customSelectOptions.classList.add('hidden'), 200);
-                });
-            });
-        } else {
-            customSelectOptions.innerHTML = '<div class="p-4 text-sm text-gray-400 text-center">請先去建立分類</div>';
-        }
-    }
-
     window.editProduct = async (id) => {
         const product = allProducts.find(p => p.id === id);
         if (!product) return;
@@ -505,13 +495,13 @@ document.addEventListener('DOMContentLoaded', () => {
         inputProductDesc.value = product.description || '';
 
         await populateCategorySelect();
-        selectProductCategory.value = product.category_id;
 
-        // 設定自訂選單的預設文字
-        const categoryName = product.categories ? product.categories.name : '未知分類';
-        customSelectText.textContent = categoryName;
-        customSelectText.classList.remove('text-gray-400');
-        customSelectText.classList.add('text-gray-800', 'font-medium');
+        currentSelectedCategoryId = product.category_id;
+        const catName = product.categories ? product.categories.name : '未知分類';
+        if (categoryText) {
+            categoryText.textContent = catName;
+            categoryText.classList.replace('text-gray-400', 'text-gray-800');
+        }
 
         if (product.image_url) {
             productImgPreview.src = product.image_url;
@@ -525,7 +515,6 @@ document.addEventListener('DOMContentLoaded', () => {
         btnSaveProduct.innerHTML = '<i data-lucide="save" class="w-5 h-5"></i> 儲存修改';
         if (typeof lucide !== 'undefined') lucide.createIcons();
 
-        // 載入客製化選項
         if (typeof window.loadProductOptions === 'function') {
             const { data: opts } = await window.supabaseClient
                 .from('product_options').select('*').eq('product_id', id).order('sort_order');
@@ -539,26 +528,118 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 10);
     };
 
+    // 🌟 圖片上傳與裁切邏輯
+    let cropper = null;
+    const modalCrop = document.getElementById('modal-crop');
+    const modalCropContent = document.getElementById('modal-crop-content');
+    const imageToCrop = document.getElementById('image-to-crop');
+
     if (productUploadArea && productFileInput) {
-        productUploadArea.addEventListener('click', () => productFileInput.click());
-        productFileInput.addEventListener('change', (e) => {
+        productUploadArea.onclick = (e) => {
+            if (e.target.closest('#btn-remove-product-image')) return;
+            if (e.target.tagName.toLowerCase() === 'input') return;
+            productFileInput.click();
+        };
+
+        productFileInput.onchange = (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            currentProductImageFile = file;
+
+            if (!file.type.startsWith('image/')) {
+                AppDialog.alert('請上傳有效的圖片檔案 (JPG / PNG)！', 'warning');
+                productFileInput.value = '';
+                return;
+            }
 
             const reader = new FileReader();
             reader.onload = (ev) => {
-                productImgPreview.src = ev.target.result;
-                productImgPreview.classList.remove('hidden');
-                productUploadPlaceholder.classList.add('hidden');
-                btnRemoveProductImage.classList.remove('hidden');
+                imageToCrop.src = ev.target.result;
+                openCropModal();
             };
             reader.readAsDataURL(file);
-        });
+            productFileInput.value = '';
+        };
     }
 
+    function openCropModal() {
+        modalCrop.classList.remove('hidden');
+        setTimeout(() => {
+            modalCrop.classList.remove('opacity-0');
+            modalCropContent.classList.remove('scale-95', 'opacity-0');
+        }, 10);
+
+        if (cropper) cropper.destroy();
+        cropper = new Cropper(imageToCrop, {
+            aspectRatio: 1,
+            viewMode: 2,
+            dragMode: 'move',
+            autoCropArea: 0.9,
+            restore: false,
+            guides: true,
+            center: true,
+            highlight: false,
+            cropBoxMovable: true,
+            cropBoxResizable: true,
+            toggleDragModeOnDblclick: false,
+        });
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function closeCropModal() {
+        modalCrop.classList.add('opacity-0');
+        modalCropContent.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => {
+            modalCrop.classList.add('hidden');
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+            imageToCrop.src = '';
+        }, 300);
+    }
+
+    document.getElementById('btn-close-crop')?.addEventListener('click', closeCropModal);
+    document.getElementById('btn-cancel-crop')?.addEventListener('click', closeCropModal);
+
+    document.getElementById('btn-confirm-crop')?.addEventListener('click', () => {
+        if (!cropper) return;
+
+        const btnConfirmCrop = document.getElementById('btn-confirm-crop');
+        const originalHtml = btnConfirmCrop.innerHTML;
+        btnConfirmCrop.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> 處理中...';
+        btnConfirmCrop.disabled = true;
+
+        const canvas = cropper.getCroppedCanvas({
+            width: 800,
+            height: 800,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high',
+        });
+
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                AppDialog.alert('裁切失敗，請重試', 'danger');
+                btnConfirmCrop.innerHTML = originalHtml;
+                btnConfirmCrop.disabled = false;
+                return;
+            }
+
+            currentProductImageFile = new File([blob], `cropped_${Date.now()}.jpg`, { type: 'image/jpeg' });
+
+            const previewUrl = URL.createObjectURL(blob);
+            productImgPreview.src = previewUrl;
+            productImgPreview.classList.remove('hidden');
+            productUploadPlaceholder.classList.add('hidden');
+            btnRemoveProductImage.classList.remove('hidden');
+
+            btnConfirmCrop.innerHTML = originalHtml;
+            btnConfirmCrop.disabled = false;
+            closeCropModal();
+        }, 'image/jpeg', 0.85);
+    });
+
     if (btnRemoveProductImage) {
-        btnRemoveProductImage.addEventListener('click', (e) => {
+        btnRemoveProductImage.onclick = (e) => {
             e.stopPropagation();
             currentProductImageFile = null;
             productImgPreview.src = '';
@@ -567,14 +648,14 @@ document.addEventListener('DOMContentLoaded', () => {
             productUploadPlaceholder.classList.remove('hidden');
             btnRemoveProductImage.classList.add('hidden');
             productFileInput.value = '';
-        });
+        };
     }
 
     if (btnSaveProduct) {
         btnSaveProduct.addEventListener('click', async () => {
             const name = inputProductName.value.trim();
             const price = parseInt(inputProductPrice.value);
-            const categoryId = selectProductCategory.value || window._selectedCategoryId || '';
+            const categoryId = currentSelectedCategoryId; // 🌟 取得自訂分類的值
             const desc = inputProductDesc.value.trim();
 
             if (!name || isNaN(price) || !categoryId) return AppDialog.alert('請完整填寫名稱、價格與選擇分類！', 'warning');
@@ -626,7 +707,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (saveError) throw saveError;
 
-                // 儲存客製化選項
                 if (savedProductId && typeof window.saveProductOptions === 'function') {
                     await window.saveProductOptions(savedProductId, storeId);
                 }
@@ -664,7 +744,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!store) return;
         currentStoreData = store;
 
-        // 設定頁欄位
         const nameEl = document.getElementById('setting-store-name');
         const phoneEl = document.getElementById('setting-phone');
         const addrEl = document.getElementById('setting-address');
@@ -676,7 +755,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const descEl = document.getElementById('setting-description');
         if (descEl) descEl.value = store.description || '';
 
-        // Logo 預覽
         if (store.logo_url) {
             const prev = document.getElementById('setting-logo-preview');
             const icon = document.getElementById('logo-placeholder-icon');
@@ -684,15 +762,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (icon) icon.classList.add('hidden');
         }
 
-        // 側邊欄店名
         const sidebarName = document.querySelector('#sidebar .font-bold.text-lg');
         if (sidebarName) sidebarName.textContent = store.name || '我的餐廳';
 
-        // 側邊欄登入帳號（補上原本缺少的這行）
         const sidebarEmail = document.getElementById('sidebar-user-email');
         if (sidebarEmail) sidebarEmail.textContent = user.email || '';
 
-        // Toggle 狀態
         updateToggleUI(store.is_open !== false);
     }
 
@@ -701,19 +776,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const dot = document.getElementById('toggle-dot');
         const label = document.getElementById('toggle-label');
         if (!btn) return;
-        btn.classList.remove('hidden');
         if (isOpen) {
-            btn.className = 'hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200 font-bold text-sm bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100';
-            dot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
-            label.textContent = '營業中';
+            btn.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all duration-200 font-bold text-xs sm:text-sm bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100';
+            dot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0';
+            if (label) label.textContent = '營業中';
         } else {
-            btn.className = 'hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200 font-bold text-sm bg-gray-100 border-gray-200 text-gray-500 hover:bg-gray-200';
-            dot.className = 'w-2 h-2 rounded-full bg-gray-400';
-            label.textContent = '休息中';
+            btn.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all duration-200 font-bold text-xs sm:text-sm bg-gray-100 border-gray-200 text-gray-500 hover:bg-gray-200';
+            dot.className = 'w-2 h-2 rounded-full bg-gray-400 shrink-0';
+            if (label) label.textContent = '休息中';
         }
     }
 
-    // 切換營業狀態
     document.getElementById('btn-toggle-open')?.addEventListener('click', async () => {
         if (!currentStoreData) return;
         const newState = currentStoreData.is_open === false ? true : false;
@@ -722,7 +795,6 @@ document.addEventListener('DOMContentLoaded', () => {
         await window.supabaseClient.from('stores').update({ is_open: newState }).eq('id', currentStoreData.id);
     });
 
-    // 儲存基本資料
     document.getElementById('btn-save-store-info')?.addEventListener('click', async () => {
         if (!currentStoreData) return;
         const btn = document.getElementById('btn-save-store-info');
@@ -752,7 +824,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Logo 上傳
     document.getElementById('setting-logo-file')?.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file || !currentStoreData) return;
@@ -776,7 +847,6 @@ document.addEventListener('DOMContentLoaded', () => {
         checkSetupNotifications();
     });
 
-    // 登出
     document.getElementById('btn-logout')?.addEventListener('click', async () => {
         const ok = await AppDialog.confirm('確定要登出系統嗎？', 'danger', '登出確認');
         if (!ok) return;
@@ -784,7 +854,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.href = 'login.html';
     });
 
-    // 側邊欄登出按鈕
     document.querySelector('#sidebar .p-4 button')?.addEventListener('click', async () => {
         const ok = await AppDialog.confirm('確定要登出系統嗎？', 'danger', '登出確認');
         if (!ok) return;
@@ -792,67 +861,42 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.href = 'login.html';
     });
 
-    // 初始化
     loadStoreHeader();
 
-    // =============================================
-    // 獨立專頁版：通知與待辦事項檢查
-    // =============================================
     async function checkSetupNotifications() {
         const storeId = await getStoreId();
         if (!storeId) return;
 
-        const { data: store } = await window.supabaseClient
-            .from('stores').select('name, phone, address, logo_url').eq('id', storeId).single();
-        const { data: products } = await window.supabaseClient
-            .from('products').select('id').eq('store_id', storeId).limit(1);
-        const { data: tables } = await window.supabaseClient
-            .from('tables').select('id').eq('store_id', storeId).limit(1);
+        const { data: store } = await window.supabaseClient.from('stores').select('name, phone, address, logo_url').eq('id', storeId).single();
+        const { data: products } = await window.supabaseClient.from('products').select('id').eq('store_id', storeId).limit(1);
+        const { data: tables } = await window.supabaseClient.from('tables').select('id').eq('store_id', storeId).limit(1);
 
         const items = [];
 
         if (store) {
-            if (!store.phone || !store.address) items.push({
-                icon: 'store', title: '完善店家基本資料', desc: '電話與地址尚未填寫', target: 'section-settings'
-            });
-            if (!store.logo_url) items.push({
-                icon: 'image', title: '上傳品牌 Logo', desc: 'Logo 有助提升顧客信任感', target: 'section-settings'
-            });
+            if (!store.phone || !store.address) items.push({ icon: 'store', title: '完善店家基本資料', desc: '電話與地址尚未填寫', target: 'section-settings' });
+            if (!store.logo_url) items.push({ icon: 'image', title: '上傳品牌 Logo', desc: 'Logo 有助提升顧客信任感', target: 'section-settings' });
         }
-        if (!products || products.length === 0) items.push({
-            icon: 'utensils', title: '新增第一道餐點', desc: '菜單目前是空的，顧客無法點餐', target: 'section-menu'
-        });
-        if (!tables || tables.length === 0) items.push({
-            icon: 'qr-code', title: '建立桌號與 QR Code', desc: '還沒有任何桌號，顧客無法掃碼', target: 'section-tables'
-        });
-        if (!localStorage.getItem('seen-payment-settings')) items.push({
-            icon: 'banknote', title: '確認付款方式', desc: '請至設定頁確認您的收款方式', target: 'section-settings'
-        });
+        if (!products || products.length === 0) items.push({ icon: 'utensils', title: '新增第一道餐點', desc: '菜單目前是空的，顧客無法點餐', target: 'section-menu' });
+        if (!tables || tables.length === 0) items.push({ icon: 'qr-code', title: '建立桌號與 QR Code', desc: '還沒有任何桌號，顧客無法掃碼', target: 'section-tables' });
+        if (!localStorage.getItem('seen-payment-settings')) items.push({ icon: 'banknote', title: '確認付款方式', desc: '請至設定頁確認您的收款方式', target: 'section-settings' });
 
         const notifList = document.getElementById('page-notif-list');
         const notifEmpty = document.getElementById('page-notif-empty');
         const sidebarBadge = document.getElementById('sidebar-notif-badge');
 
         if (items.length > 0) {
-            if (sidebarBadge) {
-                sidebarBadge.textContent = items.length;
-                sidebarBadge.classList.remove('hidden');
-            }
+            if (sidebarBadge) { sidebarBadge.textContent = items.length; sidebarBadge.classList.remove('hidden'); }
             if (notifEmpty) notifEmpty.classList.add('hidden');
             if (notifList) {
                 notifList.innerHTML = items.map(item => `
                     <div class="px-6 py-4 hover:bg-gray-50 transition-colors flex items-start gap-4">
-                        <div class="w-10 h-10 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-center shrink-0">
-                            <i data-lucide="${item.icon}" class="w-5 h-5 text-amber-600"></i>
-                        </div>
+                        <div class="w-10 h-10 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-center shrink-0"><i data-lucide="${item.icon}" class="w-5 h-5 text-amber-600"></i></div>
                         <div class="flex-1 min-w-0 pt-0.5">
                             <p class="font-bold text-sm text-gray-800">${item.title}</p>
                             <p class="text-xs mt-1 text-gray-500">${item.desc}</p>
                         </div>
-                        <button onclick="document.querySelector('[data-target=\\'${item.target}\\']').click()" 
-                            class="shrink-0 px-3 py-1.5 bg-white border border-gray-200 hover:border-emerald-400 hover:text-emerald-600 rounded-lg text-xs font-bold text-gray-600 transition-colors mt-1">
-                            前往設定
-                        </button>
+                        <button onclick="document.querySelector('[data-target=\\'${item.target}\\']').click()" class="shrink-0 px-3 py-1.5 bg-white border border-gray-200 hover:border-emerald-400 hover:text-emerald-600 rounded-lg text-xs font-bold text-gray-600 transition-colors mt-1">前往設定</button>
                     </div>`).join('');
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             }
@@ -867,20 +911,13 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const bell = document.getElementById('btn-bell');
         const dot = document.getElementById('bell-dot');
-
-        // 點擊後移除搖晃動畫與紅點（與 staff.html 相同邏輯）
         if (bell) bell.classList.remove('animate-ring', 'text-emerald-500');
         if (dot) dot.classList.add('hidden');
-
         window._pendingBellNotifs = [];
     });
 
-    // 初始化呼叫 (確保在大括號內)
     checkSetupNotifications();
 
-    // =============================================
-    // 店員連結
-    // =============================================
     async function loadStaffLink() {
         const storeId = await getStoreId();
         if (!storeId) return;
@@ -904,4 +941,68 @@ document.addEventListener('DOMContentLoaded', () => {
         window._staffLinkLoaded = true;
         loadStaffLink();
     }
-}); // 這裡結束 DOMContentLoaded
+
+    const modalContact = document.getElementById('modal-contact');
+    const modalContactContent = document.getElementById('modal-contact-content');
+    const btnOpenContact = document.getElementById('btn-open-contact');
+    const btnCloseContact = document.getElementById('btn-close-contact');
+    const btnCancelContact = document.getElementById('btn-cancel-contact');
+    const btnSendContact = document.getElementById('btn-send-contact');
+
+    function toggleContactModal(show) {
+        if (show) {
+            modalContact.classList.remove('hidden');
+            setTimeout(() => {
+                modalContact.classList.remove('opacity-0');
+                modalContactContent.classList.remove('scale-95', 'opacity-0');
+            }, 10);
+            const emailInput = document.getElementById('contact-email');
+            const userEmail = document.getElementById('sidebar-user-email')?.textContent;
+            if (userEmail && userEmail !== '載入中...') {
+                emailInput.value = userEmail;
+            }
+        } else {
+            modalContact.classList.add('opacity-0');
+            modalContactContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modalContact.classList.add('hidden');
+                document.getElementById('contact-message').value = '';
+            }, 300);
+        }
+    }
+
+    if (btnOpenContact) btnOpenContact.addEventListener('click', () => toggleContactModal(true));
+    if (btnCloseContact) btnCloseContact.addEventListener('click', () => toggleContactModal(false));
+    if (btnCancelContact) btnCancelContact.addEventListener('click', () => toggleContactModal(false));
+
+    if (btnSendContact) {
+        btnSendContact.addEventListener('click', async () => {
+            const email = document.getElementById('contact-email').value.trim();
+            const message = document.getElementById('contact-message').value.trim();
+            if (!email || !message) return window.AppDialog.alert('請填寫聯絡信箱與問題描述！', 'warning');
+
+            const originalHtml = btnSendContact.innerHTML;
+            btnSendContact.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> 傳送中...';
+            btnSendContact.disabled = true;
+            lucide.createIcons();
+
+            try {
+                const response = await fetch('https://formspree.io/f/xlgpllpq', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email, message: message, subject: '【系統回報】來自 QR 點餐店家的訊息' })
+                });
+                if (!response.ok) throw new Error('發送失敗');
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                window.AppDialog.alert('您的訊息已成功送出！我們會盡快回覆至您的信箱。', 'success');
+                toggleContactModal(false);
+            } catch (err) {
+                window.AppDialog.alert('發送失敗，請稍後再試或直接來信。', 'danger');
+            } finally {
+                btnSendContact.innerHTML = originalHtml;
+                btnSendContact.disabled = false;
+                lucide.createIcons();
+            }
+        });
+    }
+});
