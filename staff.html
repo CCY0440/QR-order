@@ -219,6 +219,20 @@
                 }
             }
 
+            // ── 客製化選項渲染 ──
+            function renderItemOptions(options) {
+                if (!options || typeof options !== 'object' || Object.keys(options).length === 0) return '';
+                const parts = Object.values(options).map(opt => {
+                    if (opt.type === 'text') return `${opt.label}：${opt.value || ''}`;
+                    const choices = (opt.choices || []).map(c => c.label).join('、');
+                    return choices ? `${opt.label}：${choices}` : null;
+                }).filter(Boolean);
+                if (!parts.length) return '';
+                return parts.map(p =>
+                    `<span class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-0.5 font-medium">${p}</span>`
+                ).join(' ');
+            }
+
             // ── 載入訂單 ──
             async function loadOrders() {
                 const todayStart = new Date();
@@ -226,7 +240,8 @@
 
                 const { data: orders } = await window.supabaseClient
                     .from('orders')
-                    .select('*, order_items(product_name, quantity, subtotal)')
+                    // 🌟 補上 options，店員才能看到客製化選項
+                    .select('*, order_items(product_name, quantity, subtotal, options)')
                     .eq('store_id', storeId)
                     .gte('created_at', todayStart.toISOString())
                     .order('created_at', { ascending: false });
@@ -241,6 +256,7 @@
                 return allOrders;
             }
 
+            // ── 渲染訂單列表 (店員版) ──
             function renderOrders() {
                 const container = document.getElementById('orders-container');
                 const filtered = getFiltered();
@@ -257,12 +273,24 @@
                 container.innerHTML = filtered.map(order => renderCard(order)).join('');
                 lucide.createIcons();
 
-                container.querySelectorAll('.btn-next').forEach(btn => {
-                    btn.addEventListener('click', () => updateStatus(btn.dataset.id, btn.dataset.next));
+                // 🌟 統一事件綁定
+                container.querySelectorAll('.action-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        if (btn.dataset.action === 'pay_and_prepare') {
+                            markPaidAndPrepare(btn.dataset.id);
+                        } else {
+                            updateStatus(btn.dataset.id, btn.dataset.next);
+                        }
+                    });
                 });
 
-                container.querySelectorAll('.btn-paid').forEach(btn => {
-                    btn.addEventListener('click', () => markPaid(btn.dataset.id));
+                container.querySelectorAll('.cancel-btn').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        const label = btn.innerText.includes('拒絕') ? '拒絕接單' : '取消訂單';
+                        if (confirm(`確定要${label}嗎？此操作無法復原。`)) {
+                            updateStatus(btn.dataset.id, 'cancelled');
+                        }
+                    });
                 });
             }
 
@@ -273,68 +301,82 @@
                 const time = new Date(order.created_at).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
                 const items = order.order_items || [];
                 const pay = PAY_LABEL[order.payment_method] || '現金';
-                const totalQty = items.reduce((s, i) => s + i.quantity, 0);
-                const isCompleted = order.status === 'completed';
+                const isPaid = order.is_paid;
+
+                const isCompleted = ['completed', 'cancelled'].includes(order.status);
+                const canCancel = !isCompleted;
+                const cancelLabel = order.status === 'pending' ? '拒絕接單' : '取消訂單';
+
+                let actionBtnHtml = '';
+                if (order.status === 'pending') {
+                    actionBtnHtml = `<button class="action-btn flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-800 text-white font-bold text-sm transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-sm" data-id="${order.id}" data-action="pay_and_prepare">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i> 確認收款並製作
+                    </button>`;
+                } else if (next) {
+                    actionBtnHtml = `<button class="action-btn flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-800 text-white font-bold text-sm transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-sm" data-id="${order.id}" data-action="next_status" data-next="${next.status}">
+                        <i data-lucide="arrow-right" class="w-4 h-4 text-emerald-400"></i> ${next.label}
+                    </button>`;
+                }
 
                 return `
-            <div class="bg-white rounded-2xl border ${order.status === 'pending' ? 'border-amber-200' : 'border-gray-100'} shadow-sm overflow-hidden fade-in ${isCompleted ? 'opacity-60' : ''}">
-
-                <!-- 頂部：流水號、桌號、狀態 -->
-                <div class="flex items-center justify-between px-4 py-3 border-b border-gray-50">
-                    <div class="flex items-center gap-3">
-                        <div class="text-center">
-                            <div class="font-black text-lg text-gray-800 leading-none">#${num}</div>
-                            <div class="text-[10px] text-gray-400">${time}</div>
+                <div class="bg-white rounded-2xl border ${order.status === 'pending' ? 'border-amber-200 shadow-amber-50' : order.status === 'cancelled' ? 'border-red-100' : 'border-gray-100'} shadow-sm flex flex-col transition-all hover:shadow-md mb-4 ${isCompleted ? 'opacity-60' : ''}">
+                    
+                    <div class="px-5 py-4 border-b border-gray-50 bg-gray-50/30 rounded-t-2xl flex items-start justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="text-center">
+                                <div class="font-black text-2xl text-gray-800 leading-none">#${num}</div>
+                                <div class="text-xs text-gray-400 mt-1">${time}</div>
+                            </div>
+                            <div class="w-px h-10 bg-gray-200"></div>
+                            <div>
+                                <div class="font-black text-gray-800 text-lg leading-tight">${order.table_name}</div>
+                                <div class="text-[10px] text-gray-500 mt-1">${pay}</div>
+                            </div>
                         </div>
-                        <div class="w-px h-8 bg-gray-100"></div>
-                        <div>
-                            <div class="font-black text-gray-800 text-sm">${order.table_name}</div>
-                            <div class="text-[10px] text-gray-400">${pay}</div>
-                        </div>
-                    </div>
-                    <span class="text-xs font-bold px-2.5 py-1.5 rounded-xl ${s.bg} ${s.text} border ${s.border} flex items-center gap-1 ${s.pulse && !isCompleted ? 'animate-pulse' : ''}">
-                        <i data-lucide="${s.icon}" class="w-3 h-3"></i> ${s.label}
-                    </span>
-                </div>
-
-                <!-- 餐點明細 -->
-                <div class="px-4 py-3 space-y-2">
-                    ${items.map(item => `
-                    <div class="flex items-center justify-between text-sm">
-                        <span class="text-gray-700 font-medium">${item.product_name}</span>
-                        <div class="flex items-center gap-3 shrink-0">
-                            <span class="text-gray-400 font-mono text-xs">×${item.quantity}</span>
-                            <span class="font-bold text-gray-700 w-16 text-right text-xs">NT$${item.subtotal.toLocaleString()}</span>
-                        </div>
-                    </div>`).join('')}
-
-                    <div class="pt-2 border-t border-gray-50 flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            ${order.note ? `<span class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-0.5">📝 ${order.note}</span>` : ''}
-                            ${order.is_paid ? `<span class="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-0.5">✓ 已付款</span>` : ''}
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs font-bold text-gray-400">×${totalQty}</span>
-                            <span class="font-black text-gray-800">NT$ ${order.total_price.toLocaleString()}</span>
+                        
+                        <div class="flex flex-col items-end gap-2 shrink-0">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl ${s.bg} ${s.text} border ${s.border} text-xs font-bold ${s.pulse && !isCompleted ? 'animate-pulse' : ''}">
+                                <i data-lucide="${s.icon}" class="w-3.5 h-3.5"></i> ${s.label}
+                            </span>
                         </div>
                     </div>
-                </div>
 
-                <!-- 操作按鈕 -->
-                ${!isCompleted ? `
-                <div class="px-4 pb-3 flex gap-2">
-                    ${!order.is_paid ? `
-                    <button class="btn-paid flex-1 py-2.5 rounded-xl border-2 border-emerald-400 text-emerald-600 font-bold text-sm hover:bg-emerald-50 transition-all active:scale-95 flex items-center justify-center gap-1.5"
-                        data-id="${order.id}">
-                        <i data-lucide="banknote" class="w-4 h-4"></i> 標記已付款
-                    </button>` : ''}
-                    ${next ? `
-                    <button class="btn-next flex-1 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-1.5"
-                        data-id="${order.id}" data-next="${next.status}">
-                        <i data-lucide="arrow-right" class="w-4 h-4"></i> ${next.label}
-                    </button>` : ''}
-                </div>` : ''}
-            </div>`;
+                    <div class="px-5 py-4">
+                        <div class="space-y-3">
+                            ${items.map(item => {
+                    const optHtml = renderItemOptions(item.options);
+                    return `
+                            <div class="text-sm">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-gray-700 font-bold">${item.product_name}</span>
+                                    <div class="flex items-center gap-3 shrink-0 ml-3">
+                                        <span class="text-gray-400 font-mono text-xs">×${item.quantity}</span>
+                                        <span class="font-bold text-gray-700 w-16 text-right text-xs">NT$${item.subtotal.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                                ${optHtml ? `<div class="flex flex-wrap gap-1 mt-1.5">${optHtml}</div>` : ''}
+                            </div>`;
+                }).join('')}
+                        </div>
+                        
+                        <div class="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between flex-wrap gap-2">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                ${order.note ? `<span class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-0.5 font-medium">📝 ${order.note}</span>` : ''}
+                                ${isPaid ? `<span class="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-lg">✓ 已付款</span>` : ''}
+                            </div>
+                            <span class="font-black text-gray-800 text-base shrink-0">NT$ ${(order.total_price || 0).toLocaleString()}</span>
+                        </div>
+                    </div>
+
+                    ${(!isCompleted) ? `
+                    <div class="px-5 py-4 flex gap-3 border-t border-gray-50 bg-white rounded-b-2xl">
+                        ${canCancel ? `
+                        <button class="cancel-btn px-4 py-3 rounded-xl bg-white hover:bg-red-50 text-red-500 font-bold text-sm transition-colors border border-red-100 flex items-center justify-center gap-1.5 shadow-sm shrink-0" data-id="${order.id}">
+                            <i data-lucide="x-circle" class="w-4 h-4"></i> ${cancelLabel}
+                        </button>` : ''}
+                        ${actionBtnHtml}
+                    </div>` : ''}
+                </div>`;
             }
 
             async function updateStatus(orderId, newStatus) {
@@ -346,7 +388,8 @@
                     .eq('id', orderId);
             }
 
-            async function markPaid(orderId) {
+            // 🌟 合併付款與製作
+            async function markPaidAndPrepare(orderId) {
                 const order = allOrders.find(o => o.id === orderId);
                 if (!order) return;
                 order.is_paid = true;
