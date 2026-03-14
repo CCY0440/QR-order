@@ -16,6 +16,20 @@
         ready: { status: 'completed', label: '完成取餐' },
     };
 
+    // 共用：渲染客製化選項（琥珀色，與備註同色系）
+    function renderItemOptions(options) {
+        if (!options || typeof options !== 'object' || Object.keys(options).length === 0) return '';
+        const parts = Object.values(options).map(opt => {
+            if (opt.type === 'text') return `${opt.label}：${opt.value || ''}`;
+            const choices = (opt.choices || []).map(c => c.label).join('、');
+            return choices ? `${opt.label}：${choices}` : null;
+        }).filter(Boolean);
+        if (!parts.length) return '';
+        return parts.map(p =>
+            `<span class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-0.5 font-medium">${p}</span>`
+        ).join(' ');
+    }
+
     let storeId = null;
     let todayOrders = [];
 
@@ -37,7 +51,7 @@
 
         const { data: orders } = await window.supabaseClient
             .from('orders')
-            .select('id, store_id, table_name, status, total_price, payment_method, is_paid, note, daily_number, created_at, order_items(product_name, quantity, subtotal)')
+            .select('id, store_id, table_name, status, total_price, payment_method, is_paid, note, daily_number, created_at, order_items(product_name, quantity, subtotal, options)')
             .eq('store_id', id)
             .gte('created_at', todayStart.toISOString())
             .order('created_at', { ascending: false });
@@ -50,7 +64,6 @@
 
     function renderStats() {
         const completed = todayOrders.filter(o => o.status === 'completed');
-        // 修改後的寫法 (拔除 'ready')：
         const pending = todayOrders.filter(o => ['pending', 'confirmed', 'preparing'].includes(o.status));
         const revenue = completed.reduce((s, o) => s + (o.total_price || 0), 0);
 
@@ -77,6 +90,9 @@
         lucide.createIcons();
     }
 
+    // =============================================
+    // 渲染訂單列表 (總覽大廳)
+    // =============================================
     function renderOrdersList() {
         const list = document.getElementById('ov-orders-list');
         if (!list) return;
@@ -103,72 +119,113 @@
             const time = new Date(order.created_at).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
             const items = order.order_items || [];
             const pay = payLabel[order.payment_method] || '現金';
+            const isPaid = order.is_paid;
+            const cancelLabel = order.status === 'pending' ? '拒絕接單' : '取消訂單';
+
+            // 組合按鈕邏輯
+            let actionBtnHtml = '';
+            if (order.status === 'pending') {
+                actionBtnHtml = `<button class="ov-action-btn flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-800 text-white font-bold text-sm transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-sm" data-id="${order.id}" data-action="pay_and_prepare">
+                    <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i> 確認收款並製作
+                </button>`;
+            } else if (next) {
+                actionBtnHtml = `<button class="ov-action-btn flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-800 text-white font-bold text-sm transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-sm" data-id="${order.id}" data-action="next_status" data-next="${next.status}">
+                    <i data-lucide="arrow-right" class="w-4 h-4 text-emerald-400"></i> ${next.label}
+                </button>`;
+            }
 
             return `
-            <div class="fade-in p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start gap-4 border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-
-                <!-- 左：流水號 + 時間 + 桌號 + 付款 -->
-                <div class="w-20 shrink-0 flex flex-col gap-1.5">
-                    <div class="bg-gray-800 rounded-xl px-2 py-1.5 text-center">
-                        <div class="font-black text-lg text-white leading-none">#${num}</div>
-                        <div class="text-[10px] text-gray-400 mt-0.5">${time}</div>
+            <div class="bg-white rounded-2xl border ${order.status === 'pending' ? 'border-amber-200 shadow-amber-50' : 'border-gray-100'} shadow-sm flex flex-col transition-all hover:shadow-md mb-4">
+                
+                <div class="px-5 py-4 border-b border-gray-50 bg-gray-50/30 rounded-t-2xl flex items-start justify-between">
+                    <div class="flex items-center gap-4">
+                        <div class="text-center">
+                            <div class="font-black text-2xl text-gray-800 leading-none">#${num}</div>
+                            <div class="text-xs text-gray-400 mt-1">${time}</div>
+                        </div>
+                        <div class="w-px h-10 bg-gray-200"></div>
+                        <div>
+                            <div class="font-black text-gray-800 text-lg leading-tight">${order.table_name}</div>
+                            <div class="text-[10px] text-gray-500 mt-1">${pay}</div>
+                        </div>
                     </div>
-                    <div class="bg-gray-50 border border-gray-100 rounded-xl px-2 py-1.5 text-center">
-                        <div class="font-black text-gray-800 text-sm leading-tight">${order.table_name}</div>
-                        <div class="text-[10px] text-gray-400 mt-0.5">${pay}</div>
+                    
+                    <div class="flex flex-col items-end gap-2 shrink-0">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl ${s.bg} ${s.text} border ${s.border} text-xs font-bold ${s.pulse ? 'animate-pulse' : ''}">
+                            <i data-lucide="${s.icon}" class="w-3.5 h-3.5"></i> ${s.label}
+                        </span>
                     </div>
                 </div>
 
-                <div class="w-px bg-gray-100 self-stretch hidden sm:block shrink-0"></div>
-
-                <!-- 中：餐點明細 -->
-                <div class="flex-1 min-w-0">
-                    <div class="space-y-1.5">
-                        ${items.map(item => `
-                        <div class="flex items-center justify-between text-sm">
-                            <span class="text-gray-700 font-medium truncate">${item.product_name}</span>
-                            <div class="flex items-center gap-3 shrink-0 ml-3">
-                                <span class="text-gray-400 font-mono text-xs">×${item.quantity}</span>
-                                <span class="font-bold text-gray-700 w-16 text-right text-xs">NT$${item.subtotal.toLocaleString()}</span>
+                <div class="px-5 py-4">
+                    <div class="space-y-3">
+                        ${items.map(item => {
+                const optHtml = renderItemOptions(item.options);
+                return `
+                        <div class="text-sm">
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-700 font-bold">${item.product_name}</span>
+                                <div class="flex items-center gap-3 shrink-0 ml-3">
+                                    <span class="text-gray-400 font-mono text-xs">×${item.quantity}</span>
+                                    <span class="font-bold text-gray-700 w-16 text-right text-xs">NT$${item.subtotal.toLocaleString()}</span>
+                                </div>
                             </div>
-                        </div>`).join('')}
+                            ${optHtml ? `<div class="flex flex-wrap gap-1 mt-1.5">${optHtml}</div>` : ''}
+                        </div>`;
+            }).join('')}
                     </div>
-                    <div class="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
-                        <div class="flex items-center gap-2">
+                    
+                    <div class="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between flex-wrap gap-2">
+                        <div class="flex items-center gap-2 flex-wrap">
                             ${order.note ? `<span class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-0.5 font-medium">📝 ${order.note}</span>` : ''}
+                            ${isPaid ? `<span class="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-lg">✓ 已付款</span>` : ''}
                         </div>
-                        <div class="flex items-center gap-2 shrink-0">
-                            <span class="text-xs font-bold text-gray-400">${items.length} 項餐點</span>
-                            <span class="text-xs text-gray-300">·</span>
-                            <span class="text-xs font-bold text-gray-400">×${items.reduce((s, i) => s + i.quantity, 0)}</span>
-                            <span class="font-black text-gray-800 text-sm">NT$ ${order.total_price.toLocaleString()}</span>
-                        </div>
+                        <span class="font-black text-gray-800 text-base shrink-0">NT$ ${(order.total_price || 0).toLocaleString()}</span>
                     </div>
                 </div>
 
-                <!-- 右：狀態 + 操作 -->
-                <div class="flex sm:flex-col items-center sm:items-end gap-2 shrink-0">
-                    <span class="text-xs font-bold px-2.5 py-1.5 rounded-xl ${s.bg} ${s.text} border ${s.border} flex items-center gap-1 ${s.pulse ? 'animate-pulse' : ''}">
-                        <i data-lucide="${s.icon}" class="w-3 h-3"></i> ${s.label}
-                    </span>
-                    ${next ? `<button class="ov-next-btn text-xs font-bold px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white transition-all active:scale-95 whitespace-nowrap"
-                        data-id="${order.id}" data-next="${next.status}">${next.label}</button>` : ''}
+                <div class="px-5 py-4 flex gap-3 border-t border-gray-50 bg-white rounded-b-2xl">
+                    <button class="ov-cancel-btn px-4 py-3 rounded-xl bg-white hover:bg-red-50 text-red-500 font-bold text-sm transition-colors border border-red-100 flex items-center justify-center gap-1.5 shadow-sm shrink-0" data-id="${order.id}">
+                        <i data-lucide="x-circle" class="w-4 h-4"></i> ${cancelLabel}
+                    </button>
+                    ${actionBtnHtml}
                 </div>
             </div>`;
         }).join('');
 
         lucide.createIcons();
 
-        list.querySelectorAll('.ov-next-btn').forEach(btn => {
+        // 綁定事件
+        list.querySelectorAll('.ov-action-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const order = todayOrders.find(o => o.id === btn.dataset.id);
                 if (!order) return;
-                order.status = btn.dataset.next;
+
+                if (btn.dataset.action === 'pay_and_prepare') {
+                    order.is_paid = true;
+                    order.status = 'preparing';
+                } else {
+                    order.status = btn.dataset.next;
+                }
                 renderStats();
                 renderOrdersList();
-                await window.supabaseClient
-                    .from('orders')
-                    .update({ status: btn.dataset.next, updated_at: new Date().toISOString() })
+                await window.supabaseClient.from('orders')
+                    .update({ status: order.status, is_paid: order.is_paid, updated_at: new Date().toISOString() })
+                    .eq('id', btn.dataset.id);
+            });
+        });
+
+        list.querySelectorAll('.ov-cancel-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const ok = await window.AppDialog.confirm('確定要取消這筆訂單嗎？此操作無法復原。', 'danger', '取消訂單');
+                if (!ok) return;
+                const order = todayOrders.find(o => o.id === btn.dataset.id);
+                if (!order) return;
+                order.status = 'cancelled';
+                renderStats();
+                renderOrdersList();
+                await window.supabaseClient.from('orders')
+                    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
                     .eq('id', btn.dataset.id);
             });
         });
@@ -182,14 +239,13 @@
                     if (payload.new.store_id !== id) return;
                     const { data: full } = await window.supabaseClient
                         .from('orders')
-                        .select('id, store_id, table_name, status, total_price, payment_method, is_paid, note, daily_number, created_at, order_items(product_name, quantity, subtotal)')
+                        .select('id, store_id, table_name, status, total_price, payment_method, is_paid, note, daily_number, created_at, order_items(product_name, quantity, subtotal, options)')
                         .eq('id', payload.new.id)
                         .single();
                     if (full) todayOrders.unshift(full);
                     renderStats();
                     renderOrdersList();
 
-                    // ✅ 加上這行！
                     if (typeof window.playNotification === 'function') window.playNotification();
                 })
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' },
@@ -206,7 +262,6 @@
     }
 
     window.loadOverview = loadOverview;
-    // Auto-run when section is already visible on page load
     if (document.getElementById('section-overview') && !document.getElementById('section-overview').classList.contains('hidden')) {
         loadOverview();
     }
