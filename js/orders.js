@@ -1,5 +1,5 @@
 // =============================================
-// orders.js — 訂單管理模組
+// orders.js — 訂單管理模組 (含頂部與側邊欄通知更新)
 // =============================================
 
 (async function () {
@@ -9,7 +9,6 @@
     let realtimeChannel = null;
     let isFirstLoad = true;
 
-    // 狀態設定
     const STATUS_CONFIG = {
         pending: { label: '未付款', icon: 'banknote', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200', pulse: true },
         confirmed: { label: '已確認', icon: 'check', bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200', pulse: false },
@@ -19,14 +18,12 @@
         cancelled: { label: '已取消', icon: 'x-circle', bg: 'bg-red-50', text: 'text-red-400', border: 'border-red-100', pulse: false },
     };
 
-    // 下一步狀態流程
     const NEXT_STATUS = {
         pending: { status: 'preparing', label: '確認並製作' },
         preparing: { status: 'ready', label: '製作完成' },
         ready: { status: 'completed', label: '完成取餐' },
     };
 
-    // 共用：渲染客製化選項（琥珀色，與備註同色系）
     function renderItemOptions(options) {
         if (!options || typeof options !== 'object' || Object.keys(options).length === 0) return '';
         const parts = Object.values(options).map(opt => {
@@ -49,16 +46,15 @@
         return currentStoreId;
     }
 
-    // =============================================
-    // 載入訂單
-    // =============================================
     window.loadOrders = async function () {
         const storeId = await getStoreId();
         if (!storeId) return;
 
         const today = new Date();
-        document.getElementById('orders-date-label').textContent =
-            `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()} 的訂單`;
+        const dateLabel = document.getElementById('orders-date-label');
+        if (dateLabel) {
+            dateLabel.textContent = `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()} 的訂單`;
+        }
 
         const { data: orders, error } = await window.supabaseClient
             .from('orders')
@@ -78,60 +74,83 @@
         }
     };
 
-    // =============================================
-    // 渲染訂單列表 (老闆版)
-    // =============================================
     function renderOrders() {
         const list = document.getElementById('orders-list');
         const empty = document.getElementById('orders-empty');
         const loading = document.getElementById('orders-loading');
 
-        loading.classList.add('hidden');
+        if (loading) loading.classList.add('hidden');
 
         const filtered = currentFilter === 'all'
             ? allOrders
             : allOrders.filter(o => o.status === currentFilter);
 
-        if (filtered.length === 0) {
-            list.classList.add('hidden');
-            empty.classList.remove('hidden');
-            return;
+        if (list && empty) {
+            if (filtered.length === 0) {
+                list.classList.add('hidden');
+                empty.classList.remove('hidden');
+            } else {
+                empty.classList.add('hidden');
+                list.classList.remove('hidden');
+                list.innerHTML = filtered.map(order => renderOrderCard(order)).join('');
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+
+            list.querySelectorAll('.btn-view-detail').forEach(btn => {
+                btn.addEventListener('click', () => openDetail(btn.dataset.id));
+            });
+
+            list.querySelectorAll('.action-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const action = btn.dataset.action;
+                    const id = btn.dataset.id;
+                    if (action === 'pay_and_prepare') {
+                        markPaidAndPrepare(id);
+                    } else if (action === 'next_status') {
+                        updateStatus(id, btn.dataset.next);
+                    }
+                });
+            });
+
+            list.querySelectorAll('.cancel-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const label = btn.innerText.includes('拒絕') ? '拒絕接單' : '取消訂單';
+                    const ok = await window.AppDialog.confirm(`確定要${label}嗎？此操作無法復原。`, 'danger', label);
+                    if (!ok) return;
+                    updateStatus(btn.dataset.id, 'cancelled');
+                });
+            });
         }
-        empty.classList.add('hidden');
-        list.classList.remove('hidden');
 
-        list.innerHTML = filtered.map(order => renderOrderCard(order)).join('');
-        lucide.createIcons();
+        // ==========================================
+        // 🌟 1. 更新左側邊欄「處理中」的訂單總數
+        // ==========================================
+        const activeOrdersCount = allOrders.filter(o => ['pending', 'confirmed', 'preparing', 'ready'].includes(o.status)).length;
+        const sidebarBadge = document.getElementById('sidebar-orders-badge');
+        if (sidebarBadge) {
+            if (activeOrdersCount > 0) {
+                sidebarBadge.textContent = activeOrdersCount;
+                sidebarBadge.classList.remove('hidden');
+            } else {
+                sidebarBadge.classList.add('hidden');
+            }
+        }
 
-        // 綁定按鈕事件
-        list.querySelectorAll('.btn-view-detail').forEach(btn => {
-            btn.addEventListener('click', () => openDetail(btn.dataset.id));
-        });
-
-        // 🌟 統一的動作按鈕監聽器
-        list.querySelectorAll('.action-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const action = btn.dataset.action;
-                const id = btn.dataset.id;
-                if (action === 'pay_and_prepare') {
-                    markPaidAndPrepare(id);
-                } else if (action === 'next_status') {
-                    updateStatus(id, btn.dataset.next);
-                }
-            });
-        });
-
-        // 取消按鈕
-        list.querySelectorAll('.cancel-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const label = btn.innerText.includes('拒絕') ? '拒絕接單' : '取消訂單';
-                const ok = await window.AppDialog.confirm(`確定要${label}嗎？此操作無法復原。`, 'danger', label);
-                if (!ok) return;
-                updateStatus(btn.dataset.id, 'cancelled');
-            });
-        });
+        // ==========================================
+        // 🌟 2. 更新右上角「待確認」訂單數字
+        // ==========================================
+        const pendingCount = allOrders.filter(o => o.status === 'pending').length;
+        const headerCountBadge = document.getElementById('header-order-count');
+        if (headerCountBadge) {
+            if (pendingCount > 0) {
+                headerCountBadge.textContent = pendingCount;
+                headerCountBadge.classList.remove('hidden');
+            } else {
+                headerCountBadge.classList.add('hidden');
+            }
+        }
     }
 
     function renderOrderCard(order) {
@@ -144,10 +163,9 @@
         const pay = { cash: '現金', card: '刷卡', linepay: 'Line Pay' }[order.payment_method] || '現金';
 
         const isCompleted = ['completed', 'cancelled'].includes(order.status);
-        const canCancel = !isCompleted;
+        const canCancel = ['pending', 'confirmed', 'preparing'].includes(order.status);
         const cancelLabel = order.status === 'pending' ? '拒絕接單' : '取消訂單';
 
-        // 🌟 組合主要動作按鈕：調淺顏色(gray-700)，加入綠色圖示點綴
         let actionBtnHtml = '';
         if (order.status === 'pending') {
             actionBtnHtml = `<button class="action-btn flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-800 text-white font-bold text-sm transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-sm" data-id="${order.id}" data-action="pay_and_prepare">
@@ -161,7 +179,6 @@
 
         return `
         <div class="bg-white rounded-2xl border ${order.status === 'pending' ? 'border-amber-200 shadow-amber-50' : order.status === 'cancelled' ? 'border-red-100' : 'border-gray-100'} shadow-sm flex flex-col transition-all hover:shadow-md mb-4 ${isCompleted ? 'opacity-60' : ''}">
-
             <div class="px-5 py-4 border-b border-gray-50 bg-gray-50/30 rounded-t-2xl flex items-start justify-between">
                 <div class="flex items-center gap-4">
                     <div class="text-center">
@@ -174,7 +191,6 @@
                         <div class="text-[10px] text-gray-500 mt-1">${pay}</div>
                     </div>
                 </div>
-                
                 <div class="flex flex-col items-end gap-2 shrink-0">
                     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl ${s.bg} ${s.text} border ${s.border} text-xs font-bold ${s.pulse && !isCompleted ? 'animate-pulse' : ''}">
                         <i data-lucide="${s.icon}" class="w-3.5 h-3.5"></i> ${s.label}
@@ -184,7 +200,6 @@
                     </button>
                 </div>
             </div>
-
             <div class="px-5 py-4">
                 <div class="space-y-3">
                     ${items.map(item => {
@@ -202,7 +217,6 @@
                     </div>`;
         }).join('')}
                 </div>
-
                 <div class="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between flex-wrap gap-2">
                     <div class="flex items-center gap-2 flex-wrap">
                         ${order.note ? `<span class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-0.5 font-medium">📝 ${order.note}</span>` : ''}
@@ -211,7 +225,6 @@
                     <span class="font-black text-gray-800 text-base shrink-0">NT$ ${(order.total_price || 0).toLocaleString()}</span>
                 </div>
             </div>
-
             ${(!isCompleted) ? `
             <div class="px-5 py-4 flex gap-3 border-t border-gray-50 bg-white rounded-b-2xl">
                 ${canCancel ? `
@@ -226,25 +239,21 @@
     async function updateStatus(orderId, newStatus) {
         const order = allOrders.find(o => o.id === orderId);
         if (order) order.status = newStatus;
-        renderOrders(); // 立即更新畫面 (不會閃爍)
+        renderOrders();
         await window.supabaseClient.from('orders')
             .update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', orderId);
     }
 
-    // 🌟 合併付款與製作的函數
     async function markPaidAndPrepare(orderId) {
         const order = allOrders.find(o => o.id === orderId);
         if (!order) return;
         order.is_paid = true;
         order.status = 'preparing';
-        renderOrders(); // 立即更新畫面
+        renderOrders();
         await window.supabaseClient.from('orders')
             .update({ is_paid: true, status: 'preparing', updated_at: new Date().toISOString() }).eq('id', orderId);
     }
 
-    // =============================================
-    // 訂單明細 Modal
-    // =============================================
     function openDetail(orderId) {
         const order = allOrders.find(o => o.id === orderId);
         if (!order) return;
@@ -260,15 +269,12 @@
         document.getElementById('detail-title').textContent = `訂單 #${num} — ${order.table_name}`;
 
         document.getElementById('detail-body').innerHTML = `
-            <!-- 狀態 -->
             <div class="flex items-center justify-between">
                 <span class="text-sm font-bold text-gray-600">目前狀態</span>
                 <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl ${s.bg} ${s.text} border ${s.border} text-xs font-bold">
                     <i data-lucide="${s.icon}" class="w-3.5 h-3.5"></i> ${s.label}
                 </span>
             </div>
-
-            <!-- 資訊列 -->
             <div class="grid grid-cols-2 gap-3 text-sm">
                 <div class="bg-gray-50 rounded-xl p-3">
                     <p class="text-xs text-gray-400 mb-0.5">點餐時間</p>
@@ -279,10 +285,7 @@
                     <p class="font-bold text-gray-700">${payLabel}</p>
                 </div>
             </div>
-
             ${order.note ? `<div class="bg-amber-50 border border-amber-100 rounded-xl p-3 text-sm text-amber-800"><span class="font-bold">備註：</span>${order.note}</div>` : ''}
-
-            <!-- 餐點明細（含客製化選項） -->
             <div>
                 <p class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">餐點明細</p>
                 <div class="space-y-3">
@@ -307,12 +310,10 @@
                 </div>
             </div>`;
 
-        // Footer 按鈕
         const footer = document.getElementById('detail-footer');
         footer.innerHTML = '';
 
-        // 取消訂單（已完成、已取消以外的狀態都可取消）
-        const canCancel = !['completed', 'cancelled'].includes(order.status);
+        const canCancel = ['pending', 'confirmed', 'preparing'].includes(order.status);
         if (canCancel) {
             const cancelBtn = document.createElement('button');
             cancelBtn.className = 'flex-1 py-2.5 rounded-xl border-2 border-red-200 text-red-500 font-bold text-sm hover:bg-red-50 transition-all flex items-center justify-center gap-2 active:scale-95';
@@ -327,7 +328,6 @@
             footer.appendChild(cancelBtn);
         }
 
-        // 付款標記
         if (!order.is_paid && order.status !== 'cancelled') {
             const paidBtn = document.createElement('button');
             paidBtn.className = 'flex-1 py-2.5 rounded-xl border-2 border-emerald-500 text-emerald-600 font-bold text-sm hover:bg-emerald-50 transition-all flex items-center justify-center gap-2';
@@ -346,7 +346,6 @@
             footer.appendChild(paidBtn);
         }
 
-        // 推進狀態
         if (next) {
             const nextBtn = document.createElement('button');
             nextBtn.className = 'flex-1 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 active:scale-95';
@@ -363,7 +362,7 @@
             modal.classList.remove('opacity-0');
             content.classList.remove('scale-95', 'opacity-0');
         });
-        lucide.createIcons();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
     function closeDetail() {
@@ -379,9 +378,6 @@
         if (e.target === e.currentTarget) closeDetail();
     });
 
-    // =============================================
-    // 篩選按鈕
-    // =============================================
     document.querySelectorAll('.order-filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.order-filter-btn').forEach(b => b.classList.remove('active'));
@@ -391,9 +387,6 @@
         });
     });
 
-    // =============================================
-    // Realtime 即時通知
-    // =============================================
     function subscribeRealtime(storeId) {
         if (realtimeChannel) realtimeChannel.unsubscribe();
 
@@ -441,6 +434,13 @@
             .subscribe();
     }
 
-})();
+    // =============================================
+    // 背景初始化：一進網頁就先抓取訂單，顯示側邊欄/頂部數字並啟動監聽
+    // =============================================
+    setTimeout(() => {
+        if (typeof window.loadOrders === 'function') {
+            window.loadOrders();
+        }
+    }, 500);
 
-// playNotification 統一由 dashboard.html 內的 <script> 定義，此處不重複覆蓋
+})();
