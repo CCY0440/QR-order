@@ -85,24 +85,29 @@
 <body class="min-h-screen">
     <header class="bg-white border-b border-gray-100 sticky top-0 z-20 shadow-sm">
         <div class="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div id="store-status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-300"></div>
-                <span id="store-name-header" class="font-black text-gray-800 text-base">載入中...</span>
+
+            <div class="flex items-center gap-2 sm:gap-3 min-w-0 pr-2">
+                <div id="store-status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-300 shrink-0"></div>
+                <span id="store-name-header" class="font-black text-gray-800 text-base truncate">載入中...</span>
             </div>
-            <div class="flex items-center gap-3">
+
+            <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+
+                <div class="flex items-center bg-gray-100 rounded-xl p-1">
+                    <button class="staff-filter-btn active" data-filter="all">全部</button>
+                    <button class="staff-filter-btn" data-filter="active">待處理</button>
+                    <button class="staff-filter-btn" data-filter="completed">已完成</button>
+                </div>
+
+                <div class="w-px h-6 bg-gray-200"></div>
 
                 <div id="header-order-icon"
-                    class="relative p-1.5 text-gray-400 transition-colors flex items-center justify-center">
+                    class="relative p-1 text-gray-400 transition-colors flex items-center justify-center shrink-0">
                     <i data-lucide="clipboard-list" class="w-6 h-6"></i>
                     <span id="header-order-count"
                         class="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full hidden border-2 border-white shadow-sm leading-tight min-w-[20px] text-center">0</span>
                 </div>
 
-                <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1 ml-1">
-                    <button class="staff-filter-btn active" data-filter="all">全部</button>
-                    <button class="staff-filter-btn" data-filter="active">待處理</button>
-                    <button class="staff-filter-btn" data-filter="completed">已完成</button>
-                </div>
             </div>
         </div>
     </header>
