@@ -58,7 +58,6 @@
 
         .animate-ring {
             animation: ring-bell 0.6s ease-in-out 2;
-            /* 搖動 2 次 */
             transform-origin: top center;
         }
 
@@ -74,12 +73,7 @@
             transition: all 0.15s;
         }
 
-        .staff-filter-btn:hover {
-            border-color: #10b981;
-            color: #059669;
-            background: #ecfdf5;
-        }
-
+        .staff-filter-btn:hover,
         .staff-filter-btn.active {
             border-color: #10b981;
             color: #059669;
@@ -89,7 +83,6 @@
 </head>
 
 <body class="min-h-screen">
-    <!-- 頂部 Header -->
     <header class="bg-white border-b border-gray-100 sticky top-0 z-20 shadow-sm">
         <div class="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
             <div class="flex items-center gap-3">
@@ -97,13 +90,15 @@
                 <span id="store-name-header" class="font-black text-gray-800 text-base">載入中...</span>
             </div>
             <div class="flex items-center gap-3">
-                <button id="staff-bell" class="relative p-1.5 text-gray-400 transition-colors">
-                    <i data-lucide="bell" class="w-5 h-5"></i>
-                    <span id="staff-bell-dot"
-                        class="absolute top-1 right-1.5 w-2 h-2 bg-red-500 rounded-full hidden border-2 border-white"></span>
-                </button>
 
-                <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                <div id="header-order-icon"
+                    class="relative p-1.5 text-gray-400 transition-colors flex items-center justify-center">
+                    <i data-lucide="clipboard-list" class="w-6 h-6"></i>
+                    <span id="header-order-count"
+                        class="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full hidden border-2 border-white shadow-sm leading-tight min-w-[20px] text-center">0</span>
+                </div>
+
+                <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1 ml-1">
                     <button class="staff-filter-btn active" data-filter="all">全部</button>
                     <button class="staff-filter-btn" data-filter="active">待處理</button>
                     <button class="staff-filter-btn" data-filter="completed">已完成</button>
@@ -112,14 +107,12 @@
         </div>
     </header>
 
-    <!-- 主體 -->
     <main class="max-w-2xl mx-auto px-4 py-5 space-y-3" id="orders-container">
         <div class="text-center py-20">
             <i data-lucide="loader" class="w-8 h-8 mx-auto animate-spin text-gray-300"></i>
         </div>
     </main>
 
-    <!-- 休息中遮罩 -->
     <div id="closed-overlay"
         class="hidden fixed inset-0 z-50 bg-white flex flex-col items-center justify-center text-center px-8">
         <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6">
@@ -132,30 +125,25 @@
 
     <script src="js/config.js"></script>
     <script>
-        // 把音效設定在這裡，並強制瀏覽器預先載入 (要換聲音只要改這行網址！)
         const notifAudio = new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3');
         notifAudio.preload = 'auto';
 
         window.playNotification = function () {
-            // 播放音效 (重置時間確保能連續播放)
             notifAudio.currentTime = 0;
             notifAudio.play().catch(e => console.log('記得先點擊畫面一下，才能解鎖音效喔！', e));
 
-            // 尋找鈴鐺
-            const bell = document.getElementById('btn-bell') || document.getElementById('staff-bell');
-            const dot = document.getElementById('bell-dot') || document.getElementById('staff-bell-dot');
+            // 🌟 讓菜單圖示發光搖晃
+            const iconWrap = document.getElementById('header-order-icon');
+            if (iconWrap) {
+                iconWrap.classList.remove('animate-ring', 'text-emerald-500');
+                void iconWrap.offsetWidth;
 
-            if (bell) {
-                // 魔法：先移除舊動畫，強制重繪，再加入新動畫，保證每次都搖！
-                bell.classList.remove('animate-ring', 'text-emerald-500');
-                void bell.offsetWidth;
+                iconWrap.classList.remove('text-gray-400');
+                iconWrap.classList.add('animate-ring', 'text-emerald-500');
 
-                bell.classList.add('animate-ring', 'text-emerald-500');
-                if (dot) dot.classList.remove('hidden');
-
-                // 1.5 秒後移除搖晃動畫
                 setTimeout(() => {
-                    bell.classList.remove('animate-ring', 'text-emerald-500');
+                    iconWrap.classList.remove('animate-ring', 'text-emerald-500');
+                    iconWrap.classList.add('text-gray-400');
                 }, 1500);
             }
         };
@@ -191,8 +179,8 @@
             let allOrders = [];
             let currentFilter = 'all';
             let storeIsOpen = true;
+            let realtimeChannel = null;
 
-            // ── 載入店家 & 檢查營業狀態 ──
             async function checkStore() {
                 const { data: store } = await window.supabaseClient
                     .from('stores').select('name, is_open').eq('id', storeId).single();
@@ -219,7 +207,6 @@
                 }
             }
 
-            // ── 客製化選項渲染 ──
             function renderItemOptions(options) {
                 if (!options || typeof options !== 'object' || Object.keys(options).length === 0) return '';
                 const parts = Object.values(options).map(opt => {
@@ -233,14 +220,12 @@
                 ).join(' ');
             }
 
-            // ── 載入訂單 ──
             async function loadOrders() {
                 const todayStart = new Date();
                 todayStart.setHours(0, 0, 0, 0);
 
                 const { data: orders } = await window.supabaseClient
                     .from('orders')
-                    // 🌟 補上 options，店員才能看到客製化選項
                     .select('*, order_items(product_name, quantity, subtotal, options)')
                     .eq('store_id', storeId)
                     .gte('created_at', todayStart.toISOString())
@@ -256,7 +241,6 @@
                 return allOrders;
             }
 
-            // ── 渲染訂單列表 (店員版) ──
             function renderOrders() {
                 const container = document.getElementById('orders-container');
                 const filtered = getFiltered();
@@ -266,14 +250,12 @@
                     <i data-lucide="inbox" class="w-10 h-10 mx-auto mb-3 text-gray-200"></i>
                     <p class="font-bold text-sm">目前沒有訂單</p>
                 </div>`;
-                    lucide.createIcons();
-                    return;
+                } else {
+                    container.innerHTML = filtered.map(order => renderCard(order)).join('');
                 }
 
-                container.innerHTML = filtered.map(order => renderCard(order)).join('');
                 lucide.createIcons();
 
-                // 🌟 統一事件綁定
                 container.querySelectorAll('.action-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
                         if (btn.dataset.action === 'pay_and_prepare') {
@@ -292,6 +274,19 @@
                         }
                     });
                 });
+
+                // 🌟 即時更新右上角紅字數量
+                const pendingCount = allOrders.filter(o => o.status === 'pending').length;
+                const headerCountBadge = document.getElementById('header-order-count');
+
+                if (headerCountBadge) {
+                    if (pendingCount > 0) {
+                        headerCountBadge.textContent = pendingCount;
+                        headerCountBadge.classList.remove('hidden');
+                    } else {
+                        headerCountBadge.classList.add('hidden');
+                    }
+                }
             }
 
             function renderCard(order) {
@@ -304,22 +299,22 @@
                 const isPaid = order.is_paid;
 
                 const isCompleted = ['completed', 'cancelled'].includes(order.status);
-                const canCancel = !isCompleted;
-                const cancelLabel = order.status === 'pending' ? '拒絕接單' : '取消訂單';
+                const canCancel = ['pending', 'confirmed', 'preparing'].includes(order.status);
+                const cancelLabel = order.status === 'pending' ? '拒接' : '取消';
 
                 let actionBtnHtml = '';
                 if (order.status === 'pending') {
-                    actionBtnHtml = `<button class="action-btn flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-800 text-white font-bold text-sm transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-sm" data-id="${order.id}" data-action="pay_and_prepare">
+                    actionBtnHtml = `<button class="action-btn flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-900 text-white font-bold text-sm transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-sm" data-id="${order.id}" data-action="pay_and_prepare">
                         <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i> 確認收款並製作
                     </button>`;
                 } else if (next) {
-                    actionBtnHtml = `<button class="action-btn flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-800 text-white font-bold text-sm transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-sm" data-id="${order.id}" data-action="next_status" data-next="${next.status}">
+                    actionBtnHtml = `<button class="action-btn flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-900 text-white font-bold text-sm transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-sm" data-id="${order.id}" data-action="next_status" data-next="${next.status}">
                         <i data-lucide="arrow-right" class="w-4 h-4 text-emerald-400"></i> ${next.label}
                     </button>`;
                 }
 
                 return `
-                <div class="bg-white rounded-2xl border ${order.status === 'pending' ? 'border-amber-200 shadow-amber-50' : order.status === 'cancelled' ? 'border-red-100' : 'border-gray-100'} shadow-sm flex flex-col transition-all hover:shadow-md mb-4 ${isCompleted ? 'opacity-60' : ''}">
+                <div class="bg-white rounded-2xl border ${order.status === 'pending' ? 'border-amber-200 shadow-amber-50' : order.status === 'cancelled' ? 'border-red-100' : 'border-gray-100'} shadow-sm flex flex-col transition-all mb-4 ${isCompleted ? 'opacity-60' : ''}">
                     
                     <div class="px-5 py-4 border-b border-gray-50 bg-gray-50/30 rounded-t-2xl flex items-start justify-between">
                         <div class="flex items-center gap-4">
@@ -351,7 +346,7 @@
                                     <span class="text-gray-700 font-bold">${item.product_name}</span>
                                     <div class="flex items-center gap-3 shrink-0 ml-3">
                                         <span class="text-gray-400 font-mono text-xs">×${item.quantity}</span>
-                                        <span class="font-bold text-gray-700 w-16 text-right text-xs">NT$${item.subtotal.toLocaleString()}</span>
+                                        <span class="font-bold text-gray-800 w-16 text-right">NT$${item.subtotal.toLocaleString()}</span>
                                     </div>
                                 </div>
                                 ${optHtml ? `<div class="flex flex-wrap gap-1 mt-1.5">${optHtml}</div>` : ''}
@@ -388,7 +383,6 @@
                     .eq('id', orderId);
             }
 
-            // 🌟 合併付款與製作
             async function markPaidAndPrepare(orderId) {
                 const order = allOrders.find(o => o.id === orderId);
                 if (!order) return;
@@ -400,11 +394,7 @@
                 }).eq('id', orderId);
             }
 
-            // 【最安全連線版】
-            let realtimeChannel = null; // 在函數外宣告
-
             function subscribeRealtime() {
-                // 確保不會重複訂閱
                 if (realtimeChannel) {
                     window.supabaseClient.removeChannel(realtimeChannel);
                 }
@@ -417,13 +407,10 @@
                         table: 'orders',
                         filter: `store_id=eq.${storeId}`
                     }, async (payload) => {
-                        console.log("收到訂單更新:", payload);
 
-                        // 💡 加入這三行：如果事件是 INSERT (新增訂單)，就播放音效與搖鈴鐺
                         if (payload.eventType === 'INSERT') {
                             window.playNotification();
                         }
-
                         await loadOrders();
                     })
                     .on('postgres_changes', {
@@ -440,13 +427,9 @@
                             document.getElementById('closed-overlay').classList.add('hidden');
                         }
                     })
-                    .subscribe((status, err) => {
-                        console.log("Realtime 連線狀態:", status);
-                        if (err) console.error("Realtime 錯誤詳細資訊:", err);
-                    });
+                    .subscribe();
             }
 
-            // ── 篩選 ──
             document.querySelectorAll('.staff-filter-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     document.querySelectorAll('.staff-filter-btn').forEach(b => b.classList.remove('active'));
@@ -456,11 +439,9 @@
                 });
             });
 
-            // ── 初始化 ──
             await checkStore();
             await loadOrders();
             subscribeRealtime();
-            lucide.createIcons();
 
         })();
     </script>
