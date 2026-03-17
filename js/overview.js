@@ -71,20 +71,27 @@
         document.getElementById('ov-completed').textContent = completed.length;
         document.getElementById('ov-total-orders').textContent = todayOrders.length;
 
+        // 🌟 廚房待製作：自動變色邏輯
         const pendingEl = document.getElementById('ov-pending');
         const pendingCard = document.getElementById('ov-pending-card');
+        const pendingLabel = document.getElementById('ov-pending-label');
+        const pendingUnit = pendingEl ? pendingEl.nextElementSibling : null;
+
         if (pendingEl) pendingEl.textContent = pending.length;
 
         if (pendingCard) {
             if (pending.length > 0) {
+                // 🔴 有單時：醒目的紅橘色警告
                 pendingCard.className = 'bg-red-50 border border-red-100 p-5 rounded-2xl shadow-sm flex flex-col relative overflow-hidden transition-colors duration-300';
-                pendingCard.querySelector('#ov-pending-label').className = 'text-sm font-bold mb-1 flex items-center gap-1 text-red-600';
-                pendingEl.className = 'text-3xl font-bold tracking-tight text-red-600';
-                pendingCard.querySelector('span:last-of-type') && (pendingCard.querySelectorAll('span')[2].className = 'text-sm font-bold text-red-500');
+                if (pendingLabel) pendingLabel.className = 'text-sm font-bold mb-1 flex items-center gap-1 text-red-600';
+                if (pendingEl) pendingEl.className = 'text-3xl font-black tracking-tight text-red-600';
+                if (pendingUnit) pendingUnit.className = 'text-sm font-bold text-red-500';
             } else {
+                // ⚪ 無單時：正常的白底灰字
                 pendingCard.className = 'bg-white border border-gray-100 p-5 rounded-2xl shadow-sm flex flex-col relative overflow-hidden transition-colors duration-300';
-                pendingCard.querySelector('#ov-pending-label').className = 'text-sm font-bold mb-1 flex items-center gap-1 text-gray-500';
+                if (pendingLabel) pendingLabel.className = 'text-sm font-bold mb-1 flex items-center gap-1 text-gray-500';
                 if (pendingEl) pendingEl.className = 'text-3xl font-bold tracking-tight text-gray-800';
+                if (pendingUnit) pendingUnit.className = 'text-sm font-bold text-gray-500';
             }
         }
         lucide.createIcons();
@@ -121,6 +128,7 @@
             const pay = payLabel[order.payment_method] || '現金';
             const isPaid = order.is_paid;
             const cancelLabel = order.status === 'pending' ? '拒絕接單' : '取消訂單';
+            const canCancel = ['pending', 'confirmed', 'preparing'].includes(order.status);
 
             // 組合按鈕邏輯
             let actionBtnHtml = '';
@@ -185,9 +193,10 @@
                 </div>
 
                 <div class="px-5 py-4 flex gap-3 border-t border-gray-50 bg-white rounded-b-2xl">
+                    ${canCancel ? `
                     <button class="ov-cancel-btn px-4 py-3 rounded-xl bg-white hover:bg-red-50 text-red-500 font-bold text-sm transition-colors border border-red-100 flex items-center justify-center gap-1.5 shadow-sm shrink-0" data-id="${order.id}">
                         <i data-lucide="x-circle" class="w-4 h-4"></i> ${cancelLabel}
-                    </button>
+                    </button>` : ''}
                     ${actionBtnHtml}
                 </div>
             </div>`;
@@ -266,5 +275,3 @@
         loadOverview();
     }
 })();
-
-// playNotification 統一由 dashboard.html 內的 <script> 定義，此處不重複覆蓋
