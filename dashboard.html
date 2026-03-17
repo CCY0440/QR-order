@@ -264,7 +264,8 @@
             <a href="#" data-target="section-orders" data-title="訂單管理"
                 class="nav-link flex items-center gap-3 px-3 py-2.5 text-gray-500 hover:bg-gray-50 hover:text-gray-800 rounded-xl font-medium transition-colors">
                 <i data-lucide="receipt" class="w-5 h-5"></i> 訂單管理
-                <span class="ml-auto bg-red-100 text-red-600 py-0.5 px-2 rounded-full text-[10px] font-bold">3</span>
+                <span id="sidebar-orders-badge"
+                    class="ml-auto bg-red-100 text-red-600 py-0.5 px-2 rounded-full text-[10px] font-bold hidden">0</span>
             </a>
             <a href="#" data-target="section-menu" data-title="菜單管理"
                 class="nav-link flex items-center gap-3 px-3 py-2.5 text-gray-500 hover:bg-gray-50 hover:text-gray-800 rounded-xl font-medium transition-colors">
@@ -294,9 +295,9 @@
             </a>
 
             <p class="px-3 text-xs font-bold text-gray-400 mb-2 mt-6 tracking-wider">系統支援</p>
-            <a href="#" data-target="section-announcements" data-title="通知與公告"
+            <a href="#" data-target="section-announcements" data-title="公告"
                 class="nav-link flex items-center gap-3 px-3 py-2.5 text-gray-500 hover:bg-gray-50 hover:text-gray-800 rounded-xl font-medium transition-colors">
-                <i data-lucide="bell-ring" class="w-5 h-5"></i> 通知與公告
+                <i data-lucide="bell-ring" class="w-5 h-5"></i> 系統公告
                 <span id="sidebar-notif-badge"
                     class="ml-auto bg-red-100 text-red-600 py-0.5 px-2 rounded-full text-[10px] font-bold hidden">0</span>
             </a>
@@ -338,10 +339,7 @@
                 </button>
                 <h1 id="header-title" class="font-bold text-gray-800 text-lg hidden sm:block">總覽大廳</h1>
             </div>
-
             <div class="flex items-center gap-3 relative">
-
-                <!-- 營業狀態 Toggle -->
                 <button id="btn-toggle-open"
                     class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all duration-200 font-bold text-xs sm:text-sm"
                     title="點擊切換營業狀態">
@@ -351,12 +349,12 @@
 
                 <div class="w-px h-6 bg-gray-200"></div>
 
-                <!-- 鈴鐺（完全複製自 staff.html） -->
-                <button id="btn-bell" class="relative p-1.5 text-gray-400 transition-colors" title="查看新訂單">
-                    <i data-lucide="bell" class="w-5 h-5"></i>
-                    <span id="bell-dot"
-                        class="absolute top-1 right-1.5 w-2 h-2 bg-red-500 rounded-full hidden border-2 border-white"></span>
-                </button>
+                <div id="header-order-icon"
+                    class="relative p-1.5 text-gray-400 transition-colors flex items-center justify-center">
+                    <i data-lucide="clipboard-list" class="w-5 h-5"></i>
+                    <span id="header-order-count"
+                        class="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full hidden border-2 border-white shadow-sm leading-tight min-w-[20px] text-center">0</span>
+                </div>
             </div>
         </header>
 
@@ -1091,8 +1089,8 @@
             </div>
             <div id="section-announcements" class="content-section hidden max-w-5xl mx-auto space-y-6 fade-in pb-12">
                 <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                    <h2 class="text-xl font-bold text-gray-800 mb-1">通知與公告</h2>
-                    <p class="text-sm text-gray-500">查看系統最新消息與您的待辦事項。</p>
+                    <h2 class="text-xl font-bold text-gray-800 mb-1">系統公告</h2>
+                    <p class="text-sm text-gray-500">查看系統的最新消息與您的待辦事項。</p>
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1390,7 +1388,6 @@
         preload="auto"></audio>
 
     <script>
-        // 把音效設定在這裡，並強制瀏覽器預先載入 (要換聲音只要改這行網址！)
         const notifAudio = new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3');
         notifAudio.preload = 'auto';
 
@@ -1398,20 +1395,18 @@
             notifAudio.currentTime = 0;
             notifAudio.play().catch(e => console.log('記得先點擊畫面一下，才能解鎖音效喔！', e));
 
-            const bell = document.getElementById('btn-bell') || document.getElementById('staff-bell');
-            const dot = document.getElementById('bell-dot') || document.getElementById('staff-bell-dot');
+            // 🌟 讓菜單圖示變成綠色並搖晃
+            const iconWrap = document.getElementById('header-order-icon');
+            if (iconWrap) {
+                iconWrap.classList.remove('animate-ring', 'text-emerald-500');
+                void iconWrap.offsetWidth;
 
-            if (bell) {
-                bell.classList.remove('animate-ring', 'text-emerald-500');
-                void bell.offsetWidth;
+                iconWrap.classList.remove('text-gray-400');
+                iconWrap.classList.add('animate-ring', 'text-emerald-500');
 
-                bell.classList.remove('text-gray-400');        // ✅ 先拔掉灰色
-                bell.classList.add('animate-ring', 'text-emerald-500');  // 再加綠色
-
-                if (dot) dot.classList.remove('hidden');
                 setTimeout(() => {
-                    bell.classList.remove('animate-ring', 'text-emerald-500');
-                    bell.classList.add('text-gray-400');       // ✅ 動畫結束後還原灰色
+                    iconWrap.classList.remove('animate-ring', 'text-emerald-500');
+                    iconWrap.classList.add('text-gray-400');
                 }, 1500);
             }
         };
