@@ -122,14 +122,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetSection.classList.add('fade-in');
             }
             if (headerTitle) headerTitle.textContent = newTitle;
-            if (targetId === 'section-menu') loadMenu();
+            // 🌟 修正：全部加上 typeof 檢查，避免找不到函數時報錯當機
+            if (targetId === 'section-menu' && typeof loadMenu === 'function') loadMenu();
             if (targetId === 'section-overview' && typeof window.loadOverview === 'function') window.loadOverview();
             if (targetId === 'section-tables' && typeof window.loadTables === 'function') window.loadTables();
-            if (targetId === 'section-settings') loadSettings();
+            if (targetId === 'section-settings' && typeof loadSettings === 'function') loadSettings();
             if (targetId === 'section-orders' && typeof window.loadOrders === 'function') window.loadOrders();
             if (targetId === 'section-reports' && typeof window.loadReports === 'function') window.loadReports();
             if (targetId === 'section-employees' && typeof window.loadStaff === 'function') window.loadStaff();
             if (targetId === 'section-history' && typeof window.initHistory === 'function') window.initHistory();
+
+            // 手機版點擊後自動收起側邊欄
             if (window.innerWidth < 1024) toggleSidebar();
         });
     });
@@ -307,7 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         categoryListContainer.innerHTML = '<div class="flex justify-center py-6"><i data-lucide="loader" class="w-6 h-6 text-emerald-500 animate-spin"></i></div>';
 
-        const { data: categories, error } = await window.supabaseClient.from('categories').select('*').eq('store_id', storeId);
+        const { data: categories, error } = await window.supabaseClient.from('categories').select('*').eq('store_id', storeId).order('name');
 
         if (error || categories.length === 0) {
             categoryListContainer.innerHTML = '<p class="text-center text-gray-400 text-sm py-4 border-2 border-dashed border-gray-100 rounded-xl">目前沒有任何分類</p>';
@@ -316,11 +319,98 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let html = '';
         categories.forEach(cat => {
-            html += `<div class="flex items-center justify-between bg-white border border-gray-100 p-3 pl-4 rounded-xl shadow-sm hover:border-emerald-200 transition-colors group"><span class="font-bold text-gray-700">${cat.name}</span><button onclick="deleteCategory('${cat.id}', '${cat.name}')" class="text-gray-400 hover:text-red-500 p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`;
+            html += `
+            <div class="flex items-center justify-between bg-white border border-gray-100 p-3 pl-4 rounded-xl shadow-sm hover:border-emerald-200 transition-colors group">
+                <span class="font-bold text-gray-700 flex-1 truncate" id="cat-name-${cat.id}">${cat.name}</span>
+                
+                <input type="text" id="cat-input-${cat.id}" class="hidden flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800" value="${cat.name}">
+                
+                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-3 shrink-0" id="cat-actions-${cat.id}">
+                    <button onclick="editCategory('${cat.id}')" class="text-gray-400 hover:text-emerald-600 p-1.5 rounded-lg transition-colors bg-white shadow-sm border border-gray-100 hover:border-emerald-200" title="編輯分類名稱">
+                        <i data-lucide="edit-3" class="w-4 h-4 pointer-events-none"></i>
+                    </button>
+                    <button onclick="deleteCategory('${cat.id}', '${cat.name}')" class="text-gray-400 hover:text-red-500 p-1.5 rounded-lg transition-colors bg-white shadow-sm border border-gray-100 hover:border-red-200" title="刪除分類">
+                        <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
+                    </button>
+                </div>
+                
+                <div class="hidden items-center gap-1 ml-3 shrink-0" id="cat-save-actions-${cat.id}">
+                    <button onclick="cancelEditCategory('${cat.id}')" class="text-gray-400 hover:bg-gray-100 p-1.5 rounded-lg transition-colors" title="取消">
+                        <i data-lucide="x" class="w-4 h-4 pointer-events-none"></i>
+                    </button>
+                    <button onclick="saveCategory('${cat.id}')" class="text-emerald-500 bg-emerald-50 hover:bg-emerald-100 p-1.5 rounded-lg transition-colors border border-emerald-200" title="儲存">
+                        <i data-lucide="check" class="w-4 h-4 pointer-events-none"></i>
+                    </button>
+                </div>
+            </div>`;
         });
         categoryListContainer.innerHTML = html;
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
+
+    // 🌟 開啟編輯模式
+    window.editCategory = function (id) {
+        document.getElementById(`cat-name-${id}`).classList.add('hidden');
+        document.getElementById(`cat-actions-${id}`).classList.add('hidden');
+
+        const input = document.getElementById(`cat-input-${id}`);
+        input.classList.remove('hidden');
+        document.getElementById(`cat-save-actions-${id}`).classList.remove('hidden');
+        document.getElementById(`cat-save-actions-${id}`).classList.add('flex');
+
+        input.focus(); // 自動將游標移進去
+
+        // 支援按 Enter 直接儲存
+        input.onkeypress = function (e) {
+            if (e.key === 'Enter') saveCategory(id);
+        };
+    };
+
+    // 🌟 取消編輯模式
+    window.cancelEditCategory = function (id) {
+        const input = document.getElementById(`cat-input-${id}`);
+        const nameSpan = document.getElementById(`cat-name-${id}`);
+
+        input.value = nameSpan.textContent; // 恢復原有名稱
+
+        input.classList.add('hidden');
+        document.getElementById(`cat-save-actions-${id}`).classList.add('hidden');
+        document.getElementById(`cat-save-actions-${id}`).classList.remove('flex');
+
+        nameSpan.classList.remove('hidden');
+        document.getElementById(`cat-actions-${id}`).classList.remove('hidden');
+    };
+
+    // 🌟 儲存修改後的分類名稱
+    window.saveCategory = async function (id) {
+        const newName = document.getElementById(`cat-input-${id}`).value.trim();
+
+        if (!newName) {
+            AppDialog.alert('分類名稱不能為空！', 'warning');
+            return;
+        }
+
+        // 把按鈕變成 Loading 狀態
+        const saveActions = document.getElementById(`cat-save-actions-${id}`);
+        saveActions.innerHTML = '<i data-lucide="loader" class="w-5 h-5 text-emerald-500 animate-spin mx-2"></i>';
+        lucide.createIcons();
+
+        try {
+            const { error } = await window.supabaseClient
+                .from('categories')
+                .update({ name: newName })
+                .eq('id', id);
+
+            if (error) throw error;
+
+            // 重新載入分類清單
+            loadCategories();
+
+        } catch (err) {
+            AppDialog.alert('更新失敗：' + err.message, 'danger');
+            cancelEditCategory(id);
+        }
+    };
 
     if (btnAddCategory) {
         btnAddCategory.addEventListener('click', async () => {
