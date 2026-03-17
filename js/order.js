@@ -1,5 +1,5 @@
 // =============================================
-// order.js — 顧客點餐頁（全置中彈窗完美版）
+// order.js — 顧客點餐頁（全新版）
 // =============================================
 (async function () {
     const params = new URLSearchParams(location.search);
@@ -13,15 +13,15 @@
 
     // ── 狀態 ──
     let allProducts = [];
-    let cart = [];
+    let cart = []; // [{product, qty, options, lineTotal}]
     let currentProduct = null;
     let pmQty = 1;
     let realtimeChannel = null;
-    let editingCartIndex = -1;
 
     // ── 初始化 ──
     document.getElementById('table-badge').textContent = tableName;
 
+    // 載入店家
     const { data: store } = await window.supabaseClient
         .from('stores').select('name, logo_url, description, is_open').eq('id', storeId).single();
 
@@ -53,32 +53,44 @@
     // ── 1. 載入菜單 ──
     async function loadMenu() {
         try {
+            // 分類（不依賴 FK join）
             const { data: categories } = await window.supabaseClient
-                .from('categories').select('id, name, sort_order')
-                .eq('store_id', storeId).order('sort_order', { ascending: true });
+                .from('categories')
+                .select('id, name, sort_order')
+                .eq('store_id', storeId)
+                .order('sort_order', { ascending: true });
             const catMap = {};
             (categories || []).forEach(c => { catMap[c.id] = c; });
 
+            // 商品
             const { data: products, error } = await window.supabaseClient
-                .from('products').select('id, category_id, name, price, description, image_url, is_available')
-                .eq('store_id', storeId).eq('is_available', true).order('name');
+                .from('products')
+                .select('id, category_id, name, price, description, image_url, is_available')
+                .eq('store_id', storeId)
+                .eq('is_available', true)
+                .order('name');
             if (error) throw error;
 
+            // 客製化選項
             const { data: allOptions } = await window.supabaseClient
-                .from('product_options').select('*')
-                .eq('store_id', storeId).order('sort_order', { ascending: true });
+                .from('product_options')
+                .select('*')
+                .eq('store_id', storeId)
+                .order('sort_order', { ascending: true });
             const optionsMap = {};
             (allOptions || []).forEach(opt => {
                 if (!optionsMap[opt.product_id]) optionsMap[opt.product_id] = [];
                 optionsMap[opt.product_id].push(opt);
             });
 
+            // 組合
             allProducts = (products || []).map(p => ({
                 ...p,
                 categories: catMap[p.category_id] || { name: '其他', sort_order: 99 },
                 product_options: optionsMap[p.id] || []
             }));
 
+            // 依 sort_order 分組
             const grouped = {};
             allProducts.forEach(p => {
                 const catName = p.categories?.name || '其他';
@@ -87,6 +99,7 @@
             });
             const sortedGroups = Object.entries(grouped).sort((a, b) => a[1].sort - b[1].sort);
 
+            // 分類導覽
             const nav = document.getElementById('category-nav');
             nav.innerHTML = '';
             sortedGroups.forEach(([cat], i) => {
@@ -103,30 +116,39 @@
                 nav.appendChild(btn);
             });
 
+            // 菜單：2欄卡片
             let html = '';
             sortedGroups.forEach(([cat, group], i) => {
                 const items = group.items;
-                html += `<div id="cat-${i}" class="mb-4 pt-4 scroll-mt-[140px]">
-                    <h2 class="text-[1.15rem] font-black text-gray-800 mb-2 px-4">${cat}</h2>
-                    <div class="bg-white flex flex-col border-y border-gray-100">`;
-
+                html += `<div id="cat-${i}" class="mb-8 fade-in">
+                    <h2 class="text-base font-black text-gray-800 mb-3 flex items-center gap-2">
+                        <span class="w-1 h-5 bg-emerald-500 rounded-full inline-block"></span>${cat}
+                        <span class="text-xs font-normal text-gray-400">${items.length} 項</span>
+                    </h2>
+                    <div class="grid grid-cols-2 gap-3">`;
                 items.forEach(p => {
                     const hasImg = !!p.image_url;
                     html += `
-                    <div class="flex items-start justify-between p-4 bg-white active:bg-gray-50 transition-colors cursor-pointer border-b border-gray-50 last:border-b-0" data-id="${p.id}" onclick="openProductModal('${p.id}')">
-                        <div class="flex-1 min-w-0 ${hasImg ? 'pr-4' : 'pr-6'}">
-                            <h3 class="font-bold text-gray-800 text-base mb-1 leading-tight">${p.name}</h3>
-                            ${p.description ? `<p class="text-sm text-gray-500 line-clamp-2 mb-2 leading-relaxed">${p.description}</p>` : ''}
-                            <div class="font-medium text-gray-800 mt-1">NT$ ${p.price}</div>
-                        </div>
-
-                        <div class="flex flex-col items-end shrink-0 gap-3">
-                            ${hasImg ? `
-                            <div class="relative w-[100px] h-[100px] rounded-xl overflow-hidden shadow-sm bg-gray-50 border border-gray-100">
+                    <div class="product-card bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col" data-id="${p.id}" onclick="openProductModal('${p.id}')">
+                        ${hasImg
+                            ? `<div class="relative w-full aspect-video overflow-hidden bg-gray-50">
                                 <img src="${p.image_url}" class="w-full h-full object-cover" loading="lazy" />
+                                <span id="cart-pill-${p.id}" class="hidden absolute top-2 right-2 bg-emerald-500 text-white text-xs font-black px-2 py-0.5 rounded-full shadow">0</span>
+                               </div>`
+                            : `<div class="relative w-full aspect-video bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+                                <i data-lucide="utensils" class="w-8 h-8 text-gray-200"></i>
+                                <span id="cart-pill-${p.id}" class="hidden absolute top-2 right-2 bg-emerald-500 text-white text-xs font-black px-2 py-0.5 rounded-full shadow">0</span>
+                               </div>`
+                        }
+                        <div class="p-3 flex flex-col flex-1">
+                            <h3 class="font-bold text-gray-800 text-sm leading-tight">${p.name}</h3>
+                            ${p.description ? `<p class="text-xs text-gray-400 mt-1 line-clamp-2">${p.description}</p>` : ''}
+                            <div class="mt-auto pt-2 flex items-center justify-between">
+                                <span class="font-black text-gray-800">NT$ ${p.price}</span>
+                                <div class="w-7 h-7 bg-emerald-500 rounded-full flex items-center justify-center shadow-sm">
+                                    <i data-lucide="plus" class="w-3.5 h-3.5 text-white"></i>
+                                </div>
                             </div>
-                            ` : ''}
-                            <div id="inline-act-${p.id}" onclick="event.stopPropagation()"></div>
                         </div>
                     </div>`;
                 });
@@ -134,111 +156,36 @@
             });
 
             document.getElementById('menu-container').innerHTML = html || '<p class="text-center text-gray-400 py-20">目前沒有供應中的餐點</p>';
-            updateMenuCardQty();
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
         } catch (e) {
             console.error('loadMenu error:', e);
             document.getElementById('menu-container').innerHTML = '<p class="text-center text-red-500 py-20 font-bold">載入失敗，請重新整理</p>';
         }
     }
 
-    function updateMenuCardQty() {
-        allProducts.forEach(p => {
-            const qtyWrap = document.getElementById(`inline-act-${p.id}`);
-            if (!qtyWrap) return;
-
-            const qtyInCart = cart.filter(c => c.product.id === p.id).reduce((s, c) => s + c.qty, 0);
-
-            if (qtyInCart > 0) {
-                const minusIcon = qtyInCart === 1 ? 'trash-2' : 'minus';
-                const minusColor = qtyInCart === 1 ? 'text-red-500' : '';
-
-                qtyWrap.innerHTML = `
-                    <button class="w-8 h-8 flex items-center justify-center text-emerald-600 hover:bg-gray-200 transition-colors" onclick="quickAdjust(event, '${p.id}', -1)"><i data-lucide="${minusIcon}" class="w-4 h-4 ${minusColor}"></i></button>
-                    <span class="w-6 text-center text-sm font-bold text-gray-800">${qtyInCart}</span>
-                    <button class="w-8 h-8 flex items-center justify-center text-emerald-600 hover:bg-gray-200 transition-colors" onclick="quickAdjust(event, '${p.id}', 1)"><i data-lucide="plus" class="w-4 h-4"></i></button>
-                `;
-                qtyWrap.className = "inline-flex items-center bg-gray-100 rounded-full shadow-sm border border-gray-200 overflow-hidden";
-            } else {
-                qtyWrap.innerHTML = `
-                    <button class="w-8 h-8 flex items-center justify-center text-gray-600 transition-colors" onclick="quickAdjust(event, '${p.id}', 1)"><i data-lucide="plus" class="w-5 h-5"></i></button>
-                `;
-                qtyWrap.className = "inline-flex items-center justify-center bg-gray-100 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform hover:bg-gray-200";
-            }
-        });
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
-
-    window.quickAdjust = function (e, productId, delta) {
-        e.stopPropagation();
-        const p = allProducts.find(x => x.id === productId);
-        if (!p) return;
-
-        const hasOptions = p.product_options && p.product_options.length > 0;
-
-        if (delta > 0) {
-            if (hasOptions) {
-                openProductModal(productId);
-            } else {
-                const existing = cart.find(c => c.product.id === productId);
-                if (existing) {
-                    existing.qty++;
-                    existing.lineTotal = existing.product.price * existing.qty;
-                } else {
-                    cart.push({ product: p, qty: 1, options: {}, extraPrice: 0, lineTotal: p.price });
-                }
-                updateCartUI();
-            }
-        } else {
-            const cartItems = cart.filter(c => c.product.id === productId);
-            if (cartItems.length === 0) return;
-
-            const lastItem = cartItems[cartItems.length - 1];
-            lastItem.qty--;
-            if (lastItem.qty <= 0) {
-                const idx = cart.lastIndexOf(lastItem);
-                cart.splice(idx, 1);
-            } else {
-                lastItem.lineTotal = (lastItem.product.price + lastItem.extraPrice) * lastItem.qty;
-            }
-            updateCartUI();
-        }
-    };
-
-
-    // ── 2. 餐點 Modal (🌟 置中動畫版) ──
-    window.openProductModal = function (productId, cartIdx = -1) {
+    // ── 2. 餐點 Modal ──
+    window.openProductModal = function (productId) {
         const p = allProducts.find(x => x.id === productId);
         if (!p) return;
         currentProduct = p;
-        editingCartIndex = cartIdx;
-
-        let existingOpts = {};
-        if (cartIdx !== -1) {
-            existingOpts = cart[cartIdx].options || {};
-            pmQty = cart[cartIdx].qty;
-        } else {
-            pmQty = 1;
-        }
+        pmQty = 1;
 
         document.getElementById('pm-name').textContent = p.name;
         document.getElementById('pm-price').textContent = `NT$ ${p.price}`;
         document.getElementById('pm-desc').textContent = p.description || '';
-        document.getElementById('pm-qty').textContent = pmQty;
+        document.getElementById('pm-qty').textContent = '1';
 
         const imgWrap = document.getElementById('pm-img-wrap');
         const img = document.getElementById('pm-img');
-        const closeNoImg = document.getElementById('pm-close-no-img');
-
-        // 有圖無圖的關閉按鈕切換
         if (p.image_url) {
             img.src = p.image_url;
             imgWrap.classList.remove('hidden');
-            if (closeNoImg) closeNoImg.classList.add('hidden');
         } else {
             imgWrap.classList.add('hidden');
-            if (closeNoImg) closeNoImg.classList.remove('hidden');
         }
 
+        // 客製化選項
         const optContainer = document.getElementById('pm-options');
         const options = p.product_options || [];
         if (options.length === 0) {
@@ -246,77 +193,46 @@
         } else {
             optContainer.innerHTML = options.sort((a, b) => a.sort_order - b.sort_order).map(opt => {
                 const choices = opt.choices || [];
-                const exist = existingOpts[opt.id];
-
                 if (opt.type === 'text') {
-                    const textVal = exist ? exist.value : '';
                     return `<div>
                         <label class="block text-sm font-bold text-gray-700 mb-2">${opt.label}${opt.required ? ' <span class="text-red-400">*</span>' : ''}</label>
-                        <textarea class="opt-field w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 resize-none" rows="2" data-opt-id="${opt.id}" data-opt-label="${opt.label}" data-opt-type="text" placeholder="請輸入...">${textVal}</textarea>
+                        <textarea class="opt-field w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 resize-none" rows="2" data-opt-id="${opt.id}" data-opt-label="${opt.label}" data-opt-type="text" placeholder="請輸入..."></textarea>
                     </div>`;
                 }
                 const isMulti = opt.type === 'multi';
                 return `<div>
                     <label class="block text-sm font-bold text-gray-700 mb-2">${opt.label}${opt.required ? ' <span class="text-red-400">*</span>' : ''} <span class="text-xs font-normal text-gray-400">${isMulti ? '（可多選）' : '（單選）'}</span></label>
                     <div class="flex flex-wrap gap-2">
-                        ${choices.map((c, ci) => {
-                    let checked = false;
-                    if (exist && exist.choices) {
-                        checked = exist.choices.some(ch => ch.label === c.label);
-                    } else if (!isMulti && ci === 0 && cartIdx === -1) {
-                        checked = true;
-                    }
-                    return `
-                            <label class="flex items-center gap-1.5 px-3 py-2 border-2 rounded-xl cursor-pointer has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 border-gray-200 transition-all">
-                                <input type="${isMulti ? 'checkbox' : 'radio'}" name="opt-${opt.id}" value="${ci}" class="opt-field sr-only" data-opt-id="${opt.id}" data-opt-label="${opt.label}" data-opt-type="${opt.type}" data-choice-label="${c.label}" data-choice-price="${c.price || 0}" ${checked ? 'checked' : ''}>
-                                <span class="text-sm font-bold text-gray-700">${c.label}</span>
-                                ${c.price ? `<span class="text-xs text-emerald-600 font-bold">+${c.price}</span>` : ''}
-                            </label>`;
-                }).join('')}
+                        ${choices.map((c, ci) => `
+                        <label class="flex items-center gap-1.5 px-3 py-2 border-2 rounded-xl cursor-pointer has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 border-gray-200 transition-all">
+                            <input type="${isMulti ? 'checkbox' : 'radio'}" name="opt-${opt.id}" value="${ci}" class="opt-field sr-only" data-opt-id="${opt.id}" data-opt-label="${opt.label}" data-opt-type="${opt.type}" data-choice-label="${c.label}" data-choice-price="${c.price || 0}" ${!isMulti && ci === 0 ? 'checked' : ''}>
+                            <span class="text-sm font-bold text-gray-700">${c.label}</span>
+                            ${c.price ? `<span class="text-xs text-emerald-600 font-bold">+${c.price}</span>` : ''}
+                        </label>`).join('')}
                     </div>
                 </div>`;
             }).join('');
         }
 
+        // 更新按鈕文字
         updateModalAddBtn();
 
-        // 🌟 置中彈窗的淡入縮放動畫
-        const wrapper = document.getElementById('product-modal-wrapper');
-        const backdrop = document.getElementById('product-modal-backdrop');
-        const modal = document.getElementById('product-modal');
-
-        if (wrapper) wrapper.classList.remove('hidden');
-        requestAnimationFrame(() => {
-            if (backdrop) backdrop.classList.remove('opacity-0');
-            if (modal) modal.classList.remove('scale-95', 'opacity-0');
-        });
-
+        document.getElementById('product-modal-backdrop').classList.remove('hidden');
+        requestAnimationFrame(() => document.getElementById('product-modal').classList.add('open'));
         if (typeof lucide !== 'undefined') lucide.createIcons();
     };
 
     window.closeProductModal = function () {
-        const wrapper = document.getElementById('product-modal-wrapper');
-        const backdrop = document.getElementById('product-modal-backdrop');
-        const modal = document.getElementById('product-modal');
-
-        // 🌟 置中彈窗的淡出縮小動畫
-        if (backdrop) backdrop.classList.add('opacity-0');
-        if (modal) modal.classList.add('scale-95', 'opacity-0');
-
-        setTimeout(() => {
-            if (wrapper) wrapper.classList.add('hidden');
-        }, 300);
-
+        document.getElementById('product-modal').classList.remove('open');
+        setTimeout(() => document.getElementById('product-modal-backdrop').classList.add('hidden'), 350);
         currentProduct = null;
-        editingCartIndex = -1;
     };
 
     function updateModalAddBtn() {
         if (!currentProduct) return;
         const extraPrice = calcOptionsExtra();
         const total = (currentProduct.price + extraPrice) * pmQty;
-        const btnText = editingCartIndex !== -1 ? '更新修改' : '加入點單';
-        document.getElementById('pm-add-btn').textContent = `${btnText} · NT$ ${total}`;
+        document.getElementById('pm-add-btn').textContent = `加入點單 · NT$ ${total}`;
     }
 
     function calcOptionsExtra() {
@@ -338,12 +254,14 @@
         updateModalAddBtn();
     };
 
+    // 選項變動時更新金額
     document.getElementById('pm-options').addEventListener('change', updateModalAddBtn);
 
     document.getElementById('pm-add-btn').onclick = () => {
         if (!currentProduct) return;
         const p = currentProduct;
 
+        // 驗證必填
         const required = (p.product_options || []).filter(o => o.required);
         for (const opt of required) {
             const fields = [...document.querySelectorAll(`.opt-field[data-opt-id="${opt.id}"]`)];
@@ -355,13 +273,14 @@
             if (!hasValue) { alert(`請選擇「${opt.label}」`); return; }
         }
 
+        // 收集選項
         const selectedOptions = {};
+        const optMap = {};
+        (p.product_options || []).forEach(o => optMap[o.id] = o);
         document.querySelectorAll('.opt-field').forEach(el => {
             const id = el.dataset.optId;
             const type = el.dataset.optType;
-            if (type === 'text') {
-                if (el.value.trim()) selectedOptions[id] = { label: el.dataset.optLabel, value: el.value.trim(), type };
-            }
+            if (type === 'text') { selectedOptions[id] = { label: el.dataset.optLabel, value: el.value, type }; }
             else if ((el.type === 'radio' || el.type === 'checkbox') && el.checked) {
                 if (!selectedOptions[id]) selectedOptions[id] = { label: el.dataset.optLabel, type, choices: [] };
                 selectedOptions[id].choices.push({ label: el.dataset.choiceLabel, price: parseInt(el.dataset.choicePrice || 0) });
@@ -371,29 +290,17 @@
         const extraPrice = calcOptionsExtra();
         const lineTotal = (p.price + extraPrice) * pmQty;
 
-        if (editingCartIndex !== -1) {
-            cart[editingCartIndex].qty = pmQty;
-            cart[editingCartIndex].options = selectedOptions;
-            cart[editingCartIndex].extraPrice = extraPrice;
-            cart[editingCartIndex].lineTotal = lineTotal;
+        // 加入購物車（相同商品+相同選項 → 合併）
+        const key = JSON.stringify({ id: p.id, opts: selectedOptions });
+        const existing = cart.find(c => JSON.stringify({ id: c.product.id, opts: c.options }) === key);
+        if (existing) {
+            existing.qty += pmQty;
+            existing.lineTotal = (p.price + extraPrice) * existing.qty;
         } else {
-            const key = JSON.stringify({ id: p.id, opts: selectedOptions });
-            const existing = cart.find(c => JSON.stringify({ id: c.product.id, opts: c.options }) === key);
-            if (existing) {
-                existing.qty += pmQty;
-                existing.lineTotal = (p.price + existing.extraPrice) * existing.qty;
-            } else {
-                cart.push({ product: p, qty: pmQty, options: selectedOptions, extraPrice, lineTotal });
-            }
+            cart.push({ product: p, qty: pmQty, options: selectedOptions, extraPrice, lineTotal });
         }
 
         updateCartUI();
-
-        const checkoutModal = document.getElementById('checkout-modal');
-        if (checkoutModal && !checkoutModal.classList.contains('hidden')) {
-            openCheckout();
-        }
-
         closeProductModal();
     };
 
@@ -402,6 +309,16 @@
         const totalQty = cart.reduce((s, c) => s + c.qty, 0);
         const totalPrice = cart.reduce((s, c) => s + c.lineTotal, 0);
 
+        // 卡片角落 pill
+        allProducts.forEach(p => {
+            const pill = document.getElementById(`cart-pill-${p.id}`);
+            if (!pill) return;
+            const qty = cart.filter(c => c.product.id === p.id).reduce((s, c) => s + c.qty, 0);
+            if (qty > 0) { pill.textContent = qty; pill.classList.remove('hidden'); }
+            else { pill.classList.add('hidden'); }
+        });
+
+        // Mobile bar
         const bar = document.getElementById('cart-bar');
         if (totalQty > 0) {
             bar.classList.remove('translate-y-full');
@@ -411,10 +328,12 @@
             bar.classList.add('translate-y-full');
         }
 
+        // Mobile header button
         const mob = document.getElementById('cart-count-mobile');
         if (totalQty > 0) { mob.textContent = totalQty; mob.classList.remove('hidden'); }
         else { mob.classList.add('hidden'); }
 
+        // Desktop sidebar
         document.getElementById('cart-count-desktop').textContent = `${totalQty} 項`;
         document.getElementById('cart-total-desktop').textContent = `NT$ ${totalPrice}`;
         const btnDeskTop = document.getElementById('btn-checkout-desktop');
@@ -425,57 +344,32 @@
             listDesktop.innerHTML = '<p class="text-center text-gray-300 text-sm py-10 px-4">尚未選擇任何餐點</p>';
         } else {
             listDesktop.innerHTML = cart.map((c, ci) => `
-            <div class="px-4 py-3 flex items-start gap-3 group">
-                <div class="flex-1 min-w-0 cursor-pointer pr-2" onclick="editCartItem(${ci})" title="點擊修改選項">
-                    <div class="flex items-center gap-1.5 mb-0.5">
-                        <p class="font-bold text-gray-800 text-sm group-hover:text-emerald-600 transition-colors break-words">${c.product.name}</p>
-                        <i data-lucide="edit-3" class="w-3 h-3 shrink-0 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
-                    </div>
+            <div class="px-4 py-3 flex items-start gap-3">
+                <div class="flex-1 min-w-0">
+                    <p class="font-bold text-gray-800 text-sm">${c.product.name}</p>
                     ${Object.values(c.options).map(o =>
-                `<p class="text-[11px] text-gray-400 leading-tight break-words whitespace-pre-wrap">${o.label}: ${o.choices ? o.choices.map(ch => ch.label).join('、') : (o.value || '')}</p>`
+                `<p class="text-xs text-gray-400">${o.label}: ${o.choices ? o.choices.map(ch => ch.label).join('、') : (o.value || '')}</p>`
             ).join('')}
                 </div>
-                <div class="flex flex-col items-end gap-1.5 shrink-0">
-                    <span class="text-sm font-black text-gray-700">NT$${c.lineTotal}</span>
+                <div class="flex items-center gap-2 shrink-0">
                     <div class="flex items-center gap-1 bg-gray-50 rounded-lg border border-gray-100 p-0.5">
-                        <button class="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:bg-gray-200 active:scale-90 transition-all" onclick="cartAdjust(${ci},-1)">
-                            <i data-lucide="${c.qty === 1 ? 'trash-2' : 'minus'}" class="w-3.5 h-3.5 ${c.qty === 1 ? 'text-red-500' : ''}"></i>
-                        </button>
+                        <button class="w-6 h-6 flex items-center justify-center rounded text-gray-500 active:scale-90" onclick="cartAdjust(${ci},-1)"><i data-lucide="minus" class="w-3 h-3"></i></button>
                         <span class="w-5 text-center text-xs font-bold">${c.qty}</span>
-                        <button class="w-6 h-6 flex items-center justify-center rounded bg-emerald-500 text-white hover:bg-emerald-600 active:scale-90 transition-all" onclick="cartAdjust(${ci},1)">
-                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                        </button>
+                        <button class="w-6 h-6 flex items-center justify-center rounded bg-emerald-500 text-white active:scale-90" onclick="cartAdjust(${ci},1)"><i data-lucide="plus" class="w-3 h-3"></i></button>
                     </div>
+                    <span class="text-xs font-black text-gray-700 w-14 text-right">NT$${c.lineTotal}</span>
                 </div>
             </div>`).join('');
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
-
-        updateMenuCardQty();
     }
-
-    window.editCartItem = function (idx) {
-        const item = cart[idx];
-        if (!item) return;
-        openProductModal(item.product.id, idx);
-    };
 
     window.cartAdjust = function (idx, delta) {
         if (!cart[idx]) return;
         cart[idx].qty += delta;
-        if (cart[idx].qty <= 0) {
-            cart.splice(idx, 1);
-        } else {
-            cart[idx].lineTotal = (cart[idx].product.price + cart[idx].extraPrice) * cart[idx].qty;
-        }
-
+        if (cart[idx].qty <= 0) cart.splice(idx, 1);
+        else cart[idx].lineTotal = (cart[idx].product.price + cart[idx].extraPrice) * cart[idx].qty;
         updateCartUI();
-
-        const checkoutModal = document.getElementById('checkout-modal');
-        if (checkoutModal && !checkoutModal.classList.contains('hidden')) {
-            if (cart.length === 0) hideModal('checkout-modal');
-            else openCheckout();
-        }
     };
 
     // ── 4. 結帳 ──
@@ -483,36 +377,17 @@
         if (cart.length === 0) return;
         const total = cart.reduce((s, c) => s + c.lineTotal, 0);
         document.getElementById('checkout-total').textContent = total;
-
-        document.getElementById('checkout-items').innerHTML = cart.map((c, ci) => `
-            <div class="flex items-start justify-between gap-3 py-4 border-b border-gray-50 last:border-0 group">
-                <div class="flex-1 min-w-0 cursor-pointer pr-2" onclick="editCartItem(${ci})" title="點擊修改客製化選項">
-                    <div class="flex items-center gap-1.5 mb-1">
-                        <span class="font-bold text-gray-800 text-sm group-hover:text-emerald-600 transition-colors break-words">${c.product.name}</span>
-                        <i data-lucide="edit-3" class="w-3.5 h-3.5 shrink-0 text-emerald-500 opacity-30 group-hover:opacity-100 transition-opacity"></i>
-                    </div>
-                    ${Object.values(c.options).map(o => `<p class="text-xs text-gray-400 mt-0.5 leading-relaxed break-words whitespace-pre-wrap">${o.label}: ${o.choices ? o.choices.map(ch => ch.label).join('、') : (o.value || '')}</p>`).join('')}
-                    ${Object.keys(c.options).length === 0 && c.product.product_options?.length > 0 ? `<p class="text-[11px] text-emerald-500 mt-0.5 font-bold">點擊新增客製化</p>` : ''}
-                </div>
-                <div class="flex flex-col items-end gap-2 shrink-0">
-                    <span class="font-black text-gray-700 text-sm">NT$ ${c.lineTotal}</span>
-                    <div class="flex items-center gap-1 bg-gray-50 rounded-lg border border-gray-200 p-0.5 shadow-sm">
-                        <button class="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:bg-gray-200 active:scale-90 transition-all" onclick="cartAdjust(${ci},-1)">
-                            <i data-lucide="${c.qty === 1 ? 'trash-2' : 'minus'}" class="w-4 h-4 ${c.qty === 1 ? 'text-red-500' : ''}"></i>
-                        </button>
-                        <span class="w-6 text-center text-sm font-bold text-gray-800">${c.qty}</span>
-                        <button class="w-7 h-7 flex items-center justify-center rounded-md bg-emerald-500 text-white hover:bg-emerald-600 active:scale-90 transition-all" onclick="cartAdjust(${ci},1)">
-                            <i data-lucide="plus" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                </div>
+        document.getElementById('checkout-items').innerHTML = cart.map(c => `
+            <div class="flex items-center justify-between text-sm">
+                <span class="font-bold text-gray-800">${c.product.name} ×${c.qty}</span>
+                <span class="font-black text-gray-700">NT$ ${c.lineTotal}</span>
             </div>
+            ${Object.values(c.options).map(o => `<p class="text-xs text-gray-400 ml-4">${o.label}: ${o.choices ? o.choices.map(ch => ch.label).join('、') : (o.value || '')}</p>`).join('')}
         `).join('');
-        lucide.createIcons();
-
         const payment = document.querySelector('input[name="payment"]:checked')?.value || 'cash';
         document.getElementById('checkout-cash-note').classList.toggle('hidden', payment !== 'cash');
 
+        // 同步桌面版備註到 checkout modal
         const desktopNote = document.getElementById('cart-note-desktop')?.value?.trim() || '';
         const checkoutNoteEl = document.getElementById('checkout-note');
         if (checkoutNoteEl && desktopNote && !checkoutNoteEl.value) checkoutNoteEl.value = desktopNote;
@@ -523,10 +398,7 @@
     document.getElementById('btn-checkout')?.addEventListener('click', openCheckout);
     document.getElementById('btn-checkout-desktop')?.addEventListener('click', openCheckout);
     document.getElementById('btn-cart-mobile')?.addEventListener('click', openCheckout);
-
-    // 🌟 點擊叉叉關閉
     document.getElementById('btn-close-checkout')?.addEventListener('click', () => hideModal('checkout-modal'));
-
     document.querySelector('input[name="payment"]')?.closest('.grid')?.addEventListener('change', () => {
         const val = document.querySelector('input[name="payment"]:checked')?.value;
         document.getElementById('checkout-cash-note').classList.toggle('hidden', val !== 'cash');
@@ -541,6 +413,7 @@
         const note = document.getElementById('checkout-note')?.value.trim() || '';
         const total = cart.reduce((s, c) => s + c.lineTotal, 0);
 
+        // 流水號
         const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
         const { count } = await window.supabaseClient.from('orders')
             .select('*', { count: 'exact', head: true })
@@ -584,9 +457,107 @@
 
     // ── 5. 訂單追蹤 ──
     function showOrderTracking(orderId, dailyNumber) {
-        // ... (保持原樣)
+        const STATUS_CONFIG = {
+            pending: { step: 1, label: '待付款', icon: 'banknote', color: 'text-amber-500', bg: 'bg-amber-50', border: 'border-amber-200' },
+            confirmed: { step: 2, label: '已確認', icon: 'check-circle', color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-200' },
+            preparing: { step: 3, label: '製作中', icon: 'chef-hat', color: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-200' },
+            ready: { step: 4, label: '可取餐了', icon: 'bell-ring', color: 'text-emerald-500', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+            completed: { step: 5, label: '用餐愉快', icon: 'star', color: 'text-purple-500', bg: 'bg-purple-50', border: 'border-purple-200' },
+            cancelled: { step: 0, label: '訂單取消', icon: 'x-circle', color: 'text-red-500', bg: 'bg-red-50', border: 'border-red-200' },
+        };
+        const steps = ['pending', 'confirmed', 'preparing', 'ready', 'completed'];
+        const stepLabels = ['待付款', '已確認', '製作中', '可取餐', '完成'];
+
+        const html = `
+        <div id="tracking-screen" class="fixed inset-0 z-[100] bg-[#f8fafc] overflow-y-auto">
+            <div class="max-w-md mx-auto px-5 py-10 flex flex-col gap-6">
+                <div class="text-center">
+                    <p class="text-sm font-bold text-gray-400 mb-1">訂單號碼</p>
+                    <div class="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-6 py-3">
+                        <span class="font-mono font-black text-amber-800 tracking-widest text-2xl">#${String(dailyNumber).padStart(3, '0')}</span>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">${tableName}</p>
+                </div>
+
+                <div id="status-card" class="bg-white rounded-3xl shadow-md border border-gray-100 p-6 text-center transition-all duration-500">
+                    <div id="status-icon-wrap" class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 transition-all duration-500 bg-amber-50 border-2 border-amber-200">
+                        <i id="status-icon" data-lucide="banknote" class="w-10 h-10 text-amber-500"></i>
+                    </div>
+                    <h2 id="status-label" class="text-2xl font-black text-gray-800 mb-1">待付款</h2>
+                    <p id="status-desc" class="text-sm text-gray-500">請到櫃檯付款，完成後廚房即開始製作</p>
+                </div>
+
+                <!-- 進度條 -->
+                <div class="relative flex justify-between px-4">
+                    <div class="absolute left-4 right-4 top-4 h-1 bg-gray-200 rounded-full -z-0">
+                        <div id="progress-fill" class="h-full bg-emerald-400 rounded-full transition-all duration-700" style="width:0%"></div>
+                    </div>
+                    ${steps.map((s, i) => `
+                    <div class="flex flex-col items-center gap-2 z-10" id="step-dot-wrap-${i}">
+                        <div id="step-dot-${i}" class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border-2 transition-all duration-500 bg-white border-gray-200 text-gray-400">${i + 1}</div>
+                        <span class="text-[10px] font-bold text-gray-400 whitespace-nowrap" id="step-label-${i}">${stepLabels[i]}</span>
+                    </div>`).join('')}
+                </div>
+
+                <button id="btn-back-to-menu" class="mx-auto flex items-center gap-2 text-gray-400 hover:text-gray-600 text-sm font-bold transition-colors">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i> 繼續點餐
+                </button>
+            </div>
+        </div>`;
+
+        document.body.insertAdjacentHTML('beforeend', html);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        updateStatusUI('pending');
+
+        realtimeChannel = window.supabaseClient
+            .channel(`order-tracking-${orderId}`)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` },
+                payload => updateStatusUI(payload.new.status))
+            .subscribe();
+
+        document.getElementById('btn-back-to-menu').onclick = () => {
+            if (realtimeChannel) { window.supabaseClient.removeChannel(realtimeChannel); realtimeChannel = null; }
+            document.getElementById('tracking-screen').remove();
+        };
+
+        function updateStatusUI(status) {
+            const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
+            const currentStep = steps.indexOf(status);
+            document.getElementById('status-icon-wrap').className = `w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 transition-all duration-500 ${cfg.bg} border-2 ${cfg.border}`;
+            document.getElementById('status-icon').setAttribute('data-lucide', cfg.icon);
+            document.getElementById('status-icon').className = `w-10 h-10 ${cfg.color}`;
+            document.getElementById('status-label').textContent = cfg.label;
+            const descs = {
+                pending: '請到櫃檯付款，完成後廚房即開始製作', confirmed: '付款已確認！廚房馬上開始為您準備 ✅',
+                preparing: '廚師正在精心製作您的餐點 🍳', ready: '餐點已準備好，服務員即將為您上菜！',
+                completed: '感謝您的光臨，用餐愉快！', cancelled: '很抱歉，此訂單已被取消',
+            };
+            document.getElementById('status-desc').textContent = descs[status] || '';
+            const pct = currentStep > 0 ? (currentStep / (steps.length - 1)) * 100 : 0;
+            document.getElementById('progress-fill').style.width = pct + '%';
+            steps.forEach((s, i) => {
+                const dot = document.getElementById(`step-dot-${i}`);
+                const lbl = document.getElementById(`step-label-${i}`);
+                if (!dot) return;
+                if (i < currentStep) {
+                    dot.className = 'w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border-2 transition-all duration-500 bg-emerald-500 border-emerald-500 text-white';
+                    dot.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i>';
+                    lbl.className = 'text-[10px] font-bold text-emerald-500 whitespace-nowrap';
+                } else if (i === currentStep) {
+                    dot.className = `w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border-2 transition-all duration-500 ${cfg.bg} ${cfg.border} ${cfg.color}`;
+                    dot.textContent = i + 1;
+                    lbl.className = `text-[10px] font-black whitespace-nowrap ${cfg.color}`;
+                } else {
+                    dot.className = 'w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border-2 transition-all duration-500 bg-white border-gray-200 text-gray-400';
+                    dot.textContent = i + 1;
+                    lbl.className = 'text-[10px] font-bold text-gray-400 whitespace-nowrap';
+                }
+            });
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
     }
 
+    // ── 6. Realtime（店家營業狀態）──
     function subscribeRealtime() {
         window.supabaseClient
             .channel('order-store-status')
@@ -598,28 +569,23 @@
             .subscribe();
     }
 
-    // ── 7. Modal 工具 (🌟 改為純縮放，移除 translate-y-full) ──
-    window.showModal = function (id) {
+    // ── 7. Modal 工具 ──
+    function showModal(id) {
         const m = document.getElementById(id);
-        if (!m) return;
         m.classList.remove('hidden');
         requestAnimationFrame(() => {
             m.classList.remove('opacity-0');
-            const card = m.querySelector('.modal-card');
-            // 只要拿掉 scale-95 和 opacity-0 就會從中間彈出來了！
-            if (card) card.classList.remove('scale-95', 'opacity-0');
+            m.querySelector('.modal-card')?.classList.remove('scale-95', 'opacity-0');
         });
     }
-
-    window.hideModal = function (id) {
+    function hideModal(id) {
         const m = document.getElementById(id);
-        if (!m) return;
         m.classList.add('opacity-0');
-        const card = m.querySelector('.modal-card');
-        if (card) card.classList.add('scale-95', 'opacity-0');
+        m.querySelector('.modal-card')?.classList.add('scale-95', 'opacity-0');
         setTimeout(() => m.classList.add('hidden'), 300);
     }
 
+    // ── 8. bind UI ──
     function bindUI() { lucide.createIcons(); }
 
 })();
