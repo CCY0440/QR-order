@@ -1,5 +1,5 @@
 // =============================================
-// order.js — 顧客點餐頁 (純置中彈窗 + 完美進度條)
+// order.js — 顧客點餐頁 (整頁進度追蹤 + 阻擋返回 + 行動支付)
 // =============================================
 (async function () {
     const params = new URLSearchParams(location.search);
@@ -278,8 +278,6 @@
 
         updateModalAddBtn();
         if (typeof lucide !== 'undefined') lucide.createIcons();
-
-        // 🌟 使用統一的置中彈出邏輯
         showModal('product-modal');
     };
 
@@ -489,6 +487,33 @@
         `).join('');
         lucide.createIcons();
 
+        // 🌟 更新這裡的手機版結帳顯示：將 LINE Pay 修改為行動支付
+        const paymentHTML = `
+            <label class="block text-sm font-bold text-gray-700 mb-2">付款方式</label>
+            <div class="grid grid-cols-3 gap-2 mb-4">
+                <label class="relative flex flex-col items-center justify-center py-2.5 border-2 border-emerald-500 bg-emerald-50 rounded-xl cursor-pointer transition-all">
+                    <input type="radio" name="payment" value="cash" class="sr-only" checked>
+                    <i data-lucide="banknote" class="w-5 h-5 text-emerald-600 mb-1"></i>
+                    <span class="text-xs font-bold text-emerald-700">現金</span>
+                </label>
+                <label class="relative flex flex-col items-center justify-center py-2.5 border-2 border-gray-100 bg-gray-50 rounded-xl opacity-50 cursor-not-allowed">
+                    <input type="radio" name="payment" value="card" class="sr-only" disabled>
+                    <i data-lucide="credit-card" class="w-5 h-5 text-gray-400 mb-1"></i>
+                    <span class="text-[10px] font-bold text-gray-500">刷卡</span>
+                </label>
+                <label class="relative flex flex-col items-center justify-center py-2.5 border-2 border-gray-100 bg-gray-50 rounded-xl opacity-50 cursor-not-allowed">
+                    <input type="radio" name="payment" value="linepay" class="sr-only" disabled>
+                    <i data-lucide="smartphone" class="w-5 h-5 text-gray-400 mb-1"></i>
+                    <span class="text-[10px] font-bold text-gray-500">行動支付</span>
+                </label>
+            </div>
+        `;
+
+        // 如果 HTML 裡有預先寫好的付款區塊，直接將行動支付文字更新
+        document.querySelectorAll('input[name="payment"][value="linepay"] ~ span').forEach(el => {
+            el.textContent = '行動支付';
+        });
+
         const payment = document.querySelector('input[name="payment"]:checked')?.value || 'cash';
         document.getElementById('checkout-cash-note').classList.toggle('hidden', payment !== 'cash');
 
@@ -559,7 +584,7 @@
         showOrderTracking(order.id, dailyNumber);
     });
 
-    // ── 5. 訂單追蹤 (🌟 你的帶數字圓圈動畫版) ──
+    // ── 5. 訂單追蹤 (🌟 整頁顯示 + 阻擋上一頁 + 高質感警告窗) ──
     window.showOrderTracking = function (orderId, dailyNumber) {
         const STATUS_CONFIG = {
             pending: { step: 1, label: '待付款', icon: 'banknote', color: 'text-amber-500', bg: 'bg-amber-50', border: 'border-amber-200' },
@@ -572,62 +597,106 @@
         const steps = ['pending', 'confirmed', 'preparing', 'ready', 'completed'];
         const stepLabels = ['待付款', '已確認', '製作中', '可取餐', '完成'];
 
-        // 🌟 注入一個全新的 Modal 結構來取代原本的全螢幕 DIV
+        // 🌟 隱藏原本菜單的背景
+        const mainHeader = document.querySelector('header');
+        const mainContent = document.querySelector('.max-w-6xl');
+        const mobileCart = document.getElementById('cart-bar');
+        if (mainHeader) mainHeader.classList.add('hidden');
+        if (mainContent) mainContent.classList.add('hidden');
+        if (mobileCart) mobileCart.classList.add('hidden');
+
+        // 🌟 注入全螢幕追蹤頁面 + 高質感警告彈窗 HTML
         const html = `
-        <div id="tracking-modal" class="fixed inset-0 z-[150] flex items-center justify-center p-4 hidden transition-opacity duration-300 opacity-0">
-            <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" id="tracking-backdrop"></div>
-            
-            <div class="modal-card relative bg-white w-full max-w-md rounded-[24px] shadow-2xl flex flex-col max-h-[90vh] transform scale-95 opacity-0 transition-all duration-300 z-10 overflow-hidden">
-                <div class="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
-                    <h3 class="font-black text-gray-800 text-lg">訂單進度追蹤</h3>
-                    <button id="btn-close-tracking" class="text-gray-400 hover:text-red-500 p-1.5 rounded-lg transition-colors bg-white shadow-sm border border-gray-100">
-                        <i data-lucide="x" class="w-5 h-5"></i>
-                    </button>
+        <div id="tracking-page" class="fixed inset-0 z-[9999] bg-[#f8fafc] flex flex-col overflow-y-auto">
+            <div class="w-full max-w-md mx-auto bg-white min-h-screen shadow-sm flex flex-col relative pb-10 border-x border-gray-50">
+                <div class="px-5 py-4 border-b border-gray-100 flex justify-center items-center bg-white sticky top-0 z-10 shadow-sm">
+                    <h3 class="font-black text-gray-800 text-lg tracking-wide">訂單進度</h3>
                 </div>
-
-                <div class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+                <div class="flex-1 p-6 flex flex-col gap-6 mt-4">
                     <div class="text-center">
-                        <p class="text-sm font-bold text-gray-400 mb-1">訂單號碼</p>
-                        <div class="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-6 py-3">
-                            <span class="font-mono font-black text-amber-800 tracking-widest text-2xl">#${String(dailyNumber).padStart(3, '0')}</span>
+                        <p class="text-sm font-bold text-gray-400 mb-2">您的取餐號碼</p>
+                        <div class="inline-flex items-center gap-2 bg-emerald-50 border-2 border-emerald-200 rounded-3xl px-8 py-4 shadow-sm">
+                            <span class="font-mono font-black text-emerald-600 tracking-widest text-4xl">#${String(dailyNumber).padStart(3, '0')}</span>
                         </div>
-                        <p class="text-xs text-gray-400 mt-2">${tableName}</p>
+                        <p class="text-sm font-bold text-gray-500 mt-4"><i data-lucide="map-pin" class="w-4 h-4 inline-block mr-1 mb-0.5"></i>${tableName}</p>
                     </div>
 
-                    <div id="status-card" class="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 text-center transition-all duration-500">
-                        <div id="status-icon-wrap" class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 transition-all duration-500 bg-amber-50 border-2 border-amber-200">
-                            <i id="status-icon" data-lucide="banknote" class="w-10 h-10 text-amber-500"></i>
+                    <div id="status-card" class="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-8 text-center transition-all duration-500 mt-2">
+                        <div id="status-icon-wrap" class="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-5 transition-all duration-500 bg-amber-50 border-4 border-amber-200 shadow-sm">
+                            <i id="status-icon" data-lucide="banknote" class="w-12 h-12 text-amber-500"></i>
                         </div>
-                        <h2 id="status-label" class="text-2xl font-black text-gray-800 mb-1">待付款</h2>
-                        <p id="status-desc" class="text-sm text-gray-500">請到櫃檯付款，完成後廚房即開始製作</p>
+                        <h2 id="status-label" class="text-2xl font-black text-gray-800 mb-2">待付款</h2>
+                        <p id="status-desc" class="text-sm font-bold text-gray-500 leading-relaxed">請到櫃檯付款，完成後廚房即開始製作</p>
                     </div>
 
-                    <div class="relative flex justify-between px-4 mb-4">
-                        <div class="absolute left-4 right-4 top-4 h-1 bg-gray-200 rounded-full -z-0">
-                            <div id="progress-fill" class="h-full bg-emerald-400 rounded-full transition-all duration-700" style="width:0%"></div>
+                    <div class="relative flex justify-between px-2 mt-4 mb-4">
+                        <div class="absolute left-4 right-4 top-4 h-1.5 bg-gray-100 rounded-full -z-0">
+                            <div id="progress-fill" class="h-full bg-emerald-400 rounded-full transition-all duration-700 shadow-sm" style="width:0%"></div>
                         </div>
                         ${steps.map((s, i) => `
-                        <div class="flex flex-col items-center gap-2 z-10" id="step-dot-wrap-${i}">
-                            <div id="step-dot-${i}" class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border-2 transition-all duration-500 bg-white border-gray-200 text-gray-400">${i + 1}</div>
-                            <span class="text-[10px] font-bold text-gray-400 whitespace-nowrap" id="step-label-${i}">${stepLabels[i]}</span>
+                        <div class="flex flex-col items-center gap-2.5 z-10" id="step-dot-wrap-${i}">
+                            <div id="step-dot-${i}" class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-black border-[3px] transition-all duration-500 bg-white border-gray-200 text-gray-400">${i + 1}</div>
+                            <span class="text-[11px] font-bold text-gray-400 whitespace-nowrap" id="step-label-${i}">${stepLabels[i]}</span>
                         </div>`).join('')}
                     </div>
                 </div>
             </div>
-        </div>`;
+        </div>
 
-        // 加入 body 並觸發 Modal 動畫
+        <div id="custom-alert-modal" class="fixed inset-0 z-[10000] flex items-center justify-center p-4 hidden transition-opacity duration-300 opacity-0">
+            <div class="absolute inset-0 bg-gray-900/70 backdrop-blur-sm" id="btn-close-alert-bg"></div>
+            <div class="relative bg-white w-full max-w-[320px] rounded-[24px] shadow-2xl p-8 text-center transform scale-95 transition-all duration-300 modal-card">
+                <div class="w-16 h-16 bg-amber-50 border-4 border-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-5">
+                    <i data-lucide="alert-triangle" class="w-8 h-8"></i>
+                </div>
+                <h3 class="text-xl font-black text-gray-800 mb-2">訂單進行中！</h3>
+                <p class="text-sm font-bold text-gray-500 mb-8 leading-relaxed">請保留此畫面，<br>以免錯過取餐叫號喔！</p>
+                <button id="btn-close-custom-alert" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3.5 rounded-xl transition-all active:scale-95 shadow-md shadow-amber-500/20">
+                    我知道了
+                </button>
+            </div>
+        </div>
+        `;
+
         document.body.insertAdjacentHTML('beforeend', html);
         if (typeof lucide !== 'undefined') lucide.createIcons();
-        showModal('tracking-modal');
         updateStatusUI('pending');
 
-        // 綁定關閉按鈕 (關閉後刪除 DOM 並取消監聽)
-        document.getElementById('btn-close-tracking').onclick = () => {
-            hideModal('tracking-modal');
-            if (realtimeChannel) { window.supabaseClient.removeChannel(realtimeChannel); realtimeChannel = null; }
-            setTimeout(() => document.getElementById('tracking-modal')?.remove(), 350);
+        // 🌟 防呆設計：替換成我們自己寫的高質感彈窗
+        window.location.hash = 'tracking';
+        window.onpopstate = function () {
+            if (window.location.hash !== '#tracking') {
+                window.location.hash = 'tracking'; // 把網址拉回來
+
+                // 顯示客製化警告彈窗
+                const alertModal = document.getElementById('custom-alert-modal');
+                if (alertModal) {
+                    alertModal.classList.remove('hidden');
+                    setTimeout(() => {
+                        alertModal.classList.remove('opacity-0');
+                        alertModal.querySelector('.modal-card').classList.remove('scale-95');
+                    }, 10);
+                }
+            }
         };
+
+        window.onbeforeunload = function (e) {
+            e.preventDefault();
+            e.returnValue = '您的餐點正在準備中，確定要離開嗎？';
+            return '您的餐點正在準備中，確定要離開嗎？';
+        };
+
+        // 綁定關閉警告窗的邏輯
+        function closeCustomAlert() {
+            const alertModal = document.getElementById('custom-alert-modal');
+            if (alertModal) {
+                alertModal.classList.add('opacity-0');
+                alertModal.querySelector('.modal-card').classList.add('scale-95');
+                setTimeout(() => alertModal.classList.add('hidden'), 300);
+            }
+        }
+        document.getElementById('btn-close-custom-alert').onclick = closeCustomAlert;
+        document.getElementById('btn-close-alert-bg').onclick = closeCustomAlert;
 
         // 即時追蹤邏輯
         realtimeChannel = window.supabaseClient
@@ -640,17 +709,20 @@
             const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
             const currentStep = steps.indexOf(status);
 
-            document.getElementById('status-icon-wrap').className = `w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 transition-all duration-500 ${cfg.bg} border-2 ${cfg.border}`;
+            document.getElementById('status-icon-wrap').className = `w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-5 transition-all duration-500 shadow-sm ${cfg.bg} border-4 ${cfg.border}`;
             document.getElementById('status-icon').setAttribute('data-lucide', cfg.icon);
-            document.getElementById('status-icon').className = `w-10 h-10 ${cfg.color}`;
+            document.getElementById('status-icon').className = `w-12 h-12 ${cfg.color}`;
             document.getElementById('status-label').textContent = cfg.label;
 
             const descs = {
-                pending: '請到櫃檯付款，完成後廚房即開始製作', confirmed: '付款已確認！廚房馬上開始為您準備 ✅',
-                preparing: '廚師正在精心製作您的餐點 🍳', ready: '餐點已準備好，服務員即將為您上菜！',
-                completed: '感謝您的光臨，用餐愉快！', cancelled: '很抱歉，此訂單已被取消',
+                pending: '請到櫃檯出示號碼並付款<br>完成後廚房即開始製作',
+                confirmed: '付款已確認！<br>廚房馬上開始為您準備 ✅',
+                preparing: '廚師正在精心製作您的餐點 🍳',
+                ready: '餐點已準備好，請至櫃檯領取！',
+                completed: '感謝您的光臨，祝您用餐愉快！',
+                cancelled: '很抱歉，此訂單已被取消。',
             };
-            document.getElementById('status-desc').textContent = descs[status] || '';
+            document.getElementById('status-desc').innerHTML = descs[status] || '';
 
             const pct = currentStep > 0 ? (currentStep / (steps.length - 1)) * 100 : 0;
             document.getElementById('progress-fill').style.width = pct + '%';
@@ -661,20 +733,26 @@
                 if (!dot) return;
 
                 if (i < currentStep) {
-                    dot.className = 'w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border-2 transition-all duration-500 bg-emerald-500 border-emerald-500 text-white';
+                    dot.className = 'w-9 h-9 rounded-full flex items-center justify-center text-sm font-black border-[3px] transition-all duration-500 bg-emerald-500 border-emerald-500 text-white';
                     dot.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i>';
-                    lbl.className = 'text-[10px] font-bold text-emerald-500 whitespace-nowrap';
+                    lbl.className = 'text-[11px] font-bold text-emerald-500 whitespace-nowrap';
                 } else if (i === currentStep) {
-                    dot.className = `w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border-2 transition-all duration-500 ${cfg.bg} ${cfg.border} ${cfg.color}`;
+                    dot.className = `w-9 h-9 rounded-full flex items-center justify-center text-sm font-black border-[3px] transition-all duration-500 ${cfg.bg} ${cfg.border} ${cfg.color}`;
                     dot.textContent = i + 1;
-                    lbl.className = `text-[10px] font-black whitespace-nowrap ${cfg.color}`;
+                    lbl.className = `text-[11px] font-black whitespace-nowrap ${cfg.color}`;
                 } else {
-                    dot.className = 'w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border-2 transition-all duration-500 bg-white border-gray-200 text-gray-400';
+                    dot.className = 'w-9 h-9 rounded-full flex items-center justify-center text-sm font-black border-[3px] transition-all duration-500 bg-white border-gray-200 text-gray-400';
                     dot.textContent = i + 1;
-                    lbl.className = 'text-[10px] font-bold text-gray-400 whitespace-nowrap';
+                    lbl.className = 'text-[11px] font-bold text-gray-400 whitespace-nowrap';
                 }
             });
             if (typeof lucide !== 'undefined') lucide.createIcons();
+
+            // 🌟 訂單如果完成或取消，就解除「上一頁」的封印
+            if (status === 'completed' || status === 'cancelled') {
+                window.onpopstate = null;
+                window.onbeforeunload = null;
+            }
         }
     };
 
@@ -689,7 +767,6 @@
             .subscribe();
     }
 
-    // 🌟 統一全域置中動畫顯示邏輯
     function showModal(id) {
         const m = document.getElementById(id);
         if (!m) return;
