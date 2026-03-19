@@ -1,9 +1,8 @@
 // =============================================
-// reports.js — 營收報表
+// reports.js — 營收報表 (支援快速按鈕、自訂日期區間與高質感日曆)
 // =============================================
 (async function () {
     let storeId = null;
-    let currentPeriod = 'day';
     let revenueChart = null;
     let paymentChart = null;
 
@@ -16,39 +15,147 @@
         return storeId;
     }
 
-    window.loadReports = async function (period) {
-        if (period) currentPeriod = period;
+    // 將日期轉成 YYYY-MM-DD 格式
+    function formatDateForInput(date) {
+        const d = new Date(date);
+        const month = '' + (d.getMonth() + 1);
+        const day = '' + d.getDate();
+        const year = d.getFullYear();
+        return [year, month.padStart(2, '0'), day.padStart(2, '0')].join('-');
+    }
+
+    // 計算快速區間的 Start 與 End
+    function getQuickRange(period) {
+        const now = new Date();
+        let start = new Date(now);
+        let end = new Date(now);
+
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+
+        if (period === 'week') {
+            start.setDate(now.getDate() - 6); // 過去 7 天 (含今天)
+        } else if (period === 'month') {
+            start.setDate(1); // 本月 1 號
+        }
+        return { start, end };
+    }
+
+    const startDateInput = document.getElementById('report-start-date');
+    const endDateInput = document.getElementById('report-end-date');
+    const quickBtns = document.querySelectorAll('.report-filter-btn');
+
+    // 🌟 初始化 Flatpickr 日曆套件
+    let fpStart = null;
+    let fpEnd = null;
+    if (typeof flatpickr !== 'undefined') {
+        fpStart = flatpickr(startDateInput, {
+            dateFormat: "Y-m-d",
+            disableMobile: true,
+            locale: "zh_tw"  // 🌟 加上這行：強制使用繁體中文
+        });
+        fpEnd = flatpickr(endDateInput, {
+            dateFormat: "Y-m-d",
+            disableMobile: true,
+            locale: "zh_tw"  // 🌟 加上這行：強制使用繁體中文
+        });
+    }
+
+    window.loadReports = async function (startInputStr, endInputStr) {
         const id = await getStoreId();
         if (!id) return;
 
-        const { start, days } = getRange(currentPeriod);
+        let startDate, endDate;
+
+        // 判斷查詢的日期範圍
+        if (startInputStr && endInputStr) {
+            startDate = new Date(startInputStr);
+            startDate.setHours(0, 0, 0, 0);
+            endDate = new Date(endInputStr);
+            endDate.setHours(23, 59, 59, 999);
+        } else {
+            if (startDateInput && startDateInput.value && endDateInput && endDateInput.value) {
+                startDate = new Date(startDateInput.value);
+                startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(endDateInput.value);
+                endDate.setHours(23, 59, 59, 999);
+            } else {
+                const range = getQuickRange('today');
+                startDate = range.start;
+                endDate = range.end;
+
+                // 同步更新日曆顯示 (使用套件的 setDate 方法)
+                if (fpStart) fpStart.setDate(startDate);
+                else if (startDateInput) startDateInput.value = formatDateForInput(startDate);
+
+                if (fpEnd) fpEnd.setDate(endDate);
+                else if (endDateInput) endDateInput.value = formatDateForInput(endDate);
+            }
+        }
+
+        const daysDiff = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24)));
 
         const { data: orders } = await window.supabaseClient
             .from('orders')
             .select('id, store_id, status, total_price, payment_method, is_paid, created_at, order_items(product_name, quantity)')
             .eq('store_id', id)
-            .gte('created_at', start.toISOString())
+            .gte('created_at', startDate.toISOString())
+            .lte('created_at', endDate.toISOString())
             .neq('status', 'cancelled');
 
         const data = orders || [];
         renderSummary(data);
-        renderTrendChart(data, start, days);
+        renderTrendChart(data, startDate, daysDiff);
         renderPaymentChart(data);
         renderTopItems(data);
     };
 
-    function getRange(period) {
-        const now = new Date();
-        if (period === 'day') {
-            const s = new Date(now); s.setHours(0, 0, 0, 0);
-            return { start: s, days: 1 };
-        }
-        if (period === 'week') {
-            const s = new Date(now); s.setDate(now.getDate() - 6); s.setHours(0, 0, 0, 0);
-            return { start: s, days: 7 };
-        }
-        const s = new Date(now); s.setDate(1); s.setHours(0, 0, 0, 0);
-        return { start: s, days: now.getDate() };
+    // 事件綁定：快速按鈕切換
+    quickBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            quickBtns.forEach(b => {
+                b.classList.remove('active', 'bg-white', 'text-emerald-600', 'shadow-sm');
+                b.classList.add('text-gray-500');
+            });
+            btn.classList.add('active', 'bg-white', 'text-emerald-600', 'shadow-sm');
+            btn.classList.remove('text-gray-500');
+
+            const range = getQuickRange(btn.dataset.range);
+
+            // 🌟 透過套件將日期填入輸入框
+            if (fpStart) fpStart.setDate(range.start);
+            else if (startDateInput) startDateInput.value = formatDateForInput(range.start);
+
+            if (fpEnd) fpEnd.setDate(range.end);
+            else if (endDateInput) endDateInput.value = formatDateForInput(range.end);
+
+            window.loadReports(startDateInput.value, endDateInput.value);
+        });
+    });
+
+    // 事件綁定：自訂查詢按鈕
+    const btnCustomReport = document.getElementById('btn-custom-report');
+    if (btnCustomReport) {
+        btnCustomReport.addEventListener('click', () => {
+            const sVal = startDateInput?.value;
+            const eVal = endDateInput?.value;
+
+            if (!sVal || !eVal) {
+                window.AppDialog.alert('請選擇完整的開始與結束日期！', 'warning');
+                return;
+            }
+            if (new Date(sVal) > new Date(eVal)) {
+                window.AppDialog.alert('開始日期不能晚於結束日期喔！', 'warning');
+                return;
+            }
+
+            quickBtns.forEach(b => {
+                b.classList.remove('active', 'bg-white', 'text-emerald-600', 'shadow-sm');
+                b.classList.add('text-gray-500');
+            });
+
+            window.loadReports(sVal, eVal);
+        });
     }
 
     function renderSummary(orders) {
@@ -68,8 +175,7 @@
         const values = [];
 
         if (days === 1) {
-            // 今日：按小時（0–現在）
-            const currentHour = new Date().getHours();
+            const currentHour = start.toDateString() === new Date().toDateString() ? new Date().getHours() : 23;
             for (let h = 0; h <= currentHour; h++) {
                 labels.push(`${h}:00`);
                 const total = orders
@@ -127,7 +233,7 @@
 
     function renderPaymentChart(orders) {
         const counts = {};
-        const labels = { cash: '現金', card: '刷卡', linepay: 'Line Pay' };
+        const labels = { cash: '現金', card: '刷卡', linepay: '行動支付' }; // 🌟 順手幫你改成行動支付
         const colors = { cash: '#10b981', card: '#3b82f6', linepay: '#00b900' };
 
         orders.forEach(o => {
@@ -137,7 +243,15 @@
 
         const keys = Object.keys(counts);
         const ctx = document.getElementById('chart-payment')?.getContext('2d');
-        if (!ctx || keys.length === 0) return;
+        if (!ctx || keys.length === 0) {
+            if (paymentChart) {
+                paymentChart.destroy();
+                paymentChart = null;
+            }
+            const legend = document.getElementById('chart-payment-legend');
+            if (legend) legend.innerHTML = '<p class="text-center text-gray-400 text-sm py-4">該區間尚無付款資料</p>';
+            return;
+        }
 
         if (paymentChart) paymentChart.destroy();
         paymentChart = new Chart(ctx, {
@@ -171,10 +285,12 @@
     function renderTopItems(orders) {
         const itemCounts = {};
         orders.forEach(o => {
-            (o.order_items || []).forEach(item => {
-                const n = item.product_name;
-                itemCounts[n] = (itemCounts[n] || 0) + item.quantity;
-            });
+            if (o.status !== 'cancelled') {
+                (o.order_items || []).forEach(item => {
+                    const n = item.product_name;
+                    itemCounts[n] = (itemCounts[n] || 0) + item.quantity;
+                });
+            }
         });
 
         const sorted = Object.entries(itemCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
@@ -183,12 +299,12 @@
         if (!container) return;
 
         if (sorted.length === 0) {
-            container.innerHTML = '<p class="p-8 text-center text-gray-400 text-sm">尚無資料</p>';
+            container.innerHTML = '<p class="p-8 text-center text-gray-400 text-sm">該區間尚無熱銷資料</p>';
             return;
         }
 
         container.innerHTML = sorted.map(([name, count], i) => `
-            <div class="px-6 py-3.5 flex items-center gap-4">
+            <div class="px-6 py-3.5 flex items-center gap-4 hover:bg-gray-50 transition-colors">
                 <span class="w-6 text-center font-black text-sm ${i < 3 ? 'text-emerald-500' : 'text-gray-300'}">${i + 1}</span>
                 <div class="flex-1 min-w-0">
                     <p class="font-bold text-gray-800 text-sm truncate">${name}</p>
@@ -199,13 +315,4 @@
                 <span class="font-black text-gray-700 text-sm shrink-0">${count} 份</span>
             </div>`).join('');
     }
-
-    // 週期切換按鈕
-    document.querySelectorAll('.report-period-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.report-period-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            window.loadReports(btn.dataset.period);
-        });
-    });
 })();
