@@ -1,5 +1,5 @@
 // =============================================
-// dashboard.js — 完整升級版 (含自訂分類選單與圖片裁切)
+// dashboard.js — 完整升級版 (含自訂分類、圖片裁切與 Logo 刪除)
 // =============================================
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -122,7 +122,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetSection.classList.add('fade-in');
             }
             if (headerTitle) headerTitle.textContent = newTitle;
-            // 🌟 修正：全部加上 typeof 檢查，避免找不到函數時報錯當機
             if (targetId === 'section-menu' && typeof loadMenu === 'function') loadMenu();
             if (targetId === 'section-overview' && typeof window.loadOverview === 'function') window.loadOverview();
             if (targetId === 'section-tables' && typeof window.loadTables === 'function') window.loadTables();
@@ -132,8 +131,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (targetId === 'section-employees' && typeof window.loadStaff === 'function') window.loadStaff();
             if (targetId === 'section-history' && typeof window.initHistory === 'function') window.initHistory();
 
-            // 手機版點擊後自動收起側邊欄
-            if (window.innerWidth < 1024) toggleSidebar();
+            // 🌟 修正：只有在側邊欄是「展開」的狀態下，才執行收起動作
+            if (window.innerWidth < 1024 && sidebar && sidebar.classList.contains('translate-x-0')) {
+                toggleSidebar();
+            }
         });
     });
 
@@ -358,9 +359,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById(`cat-save-actions-${id}`).classList.remove('hidden');
         document.getElementById(`cat-save-actions-${id}`).classList.add('flex');
 
-        input.focus(); // 自動將游標移進去
+        input.focus();
 
-        // 支援按 Enter 直接儲存
         input.onkeypress = function (e) {
             if (e.key === 'Enter') saveCategory(id);
         };
@@ -371,7 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const input = document.getElementById(`cat-input-${id}`);
         const nameSpan = document.getElementById(`cat-name-${id}`);
 
-        input.value = nameSpan.textContent; // 恢復原有名稱
+        input.value = nameSpan.textContent;
 
         input.classList.add('hidden');
         document.getElementById(`cat-save-actions-${id}`).classList.add('hidden');
@@ -390,7 +390,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 把按鈕變成 Loading 狀態
         const saveActions = document.getElementById(`cat-save-actions-${id}`);
         saveActions.innerHTML = '<i data-lucide="loader" class="w-5 h-5 text-emerald-500 animate-spin mx-2"></i>';
         lucide.createIcons();
@@ -402,8 +401,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 .eq('id', id);
 
             if (error) throw error;
-
-            // 重新載入分類清單
             loadCategories();
 
         } catch (err) {
@@ -458,7 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnRemoveProductImage = document.getElementById('btn-remove-product-image');
 
     let currentProductImageFile = null;
-    let currentSelectedCategoryId = ''; // 用來儲存當前選擇的分類ID
+    let currentSelectedCategoryId = '';
 
     // 🌟 自訂分類選單邏輯
     const categoryWrapper = document.getElementById('custom-category-wrapper');
@@ -523,7 +520,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 清空表單
     function resetProductForm() {
         editingProductId = null;
         inputProductName.value = '';
@@ -745,7 +741,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnSaveProduct.addEventListener('click', async () => {
             const name = inputProductName.value.trim();
             const price = parseInt(inputProductPrice.value);
-            const categoryId = currentSelectedCategoryId; // 🌟 取得自訂分類的值
+            const categoryId = currentSelectedCategoryId;
             const desc = inputProductDesc.value.trim();
 
             if (!name || isNaN(price) || !categoryId) return AppDialog.alert('請完整填寫名稱、價格與選擇分類！', 'warning');
@@ -817,9 +813,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // 載入店家資料（Header + 設定頁）
+    // 載入店家資料（Header + 設定頁）+ Logo 刪除功能
     // =============================================
     let currentStoreData = null;
+    const btnRemoveLogo = document.getElementById('btn-remove-logo');
 
     async function loadStoreHeader() {
         const { data: { user } } = await window.supabaseClient.auth.getUser();
@@ -850,6 +847,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const icon = document.getElementById('logo-placeholder-icon');
             if (prev) { prev.src = store.logo_url; prev.classList.remove('hidden'); }
             if (icon) icon.classList.add('hidden');
+            // 🌟 若已存在 Logo，將叉叉按鈕顯示出來
+            if (btnRemoveLogo) btnRemoveLogo.classList.remove('hidden');
         }
 
         const sidebarName = document.querySelector('#sidebar .font-bold.text-lg');
@@ -931,10 +930,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const prev = document.getElementById('setting-logo-preview');
         const icon = document.getElementById('logo-placeholder-icon');
-        if (prev) { prev.src = publicUrl; prev.classList.remove('hidden'); }
+
+        if (prev) {
+            prev.src = publicUrl;
+            prev.classList.remove('hidden');
+        }
         if (icon) icon.classList.add('hidden');
         if (statusEl) statusEl.textContent = '✓ 上傳成功';
+
+        // 🌟 上傳成功後，動態顯示叉叉刪除按鈕
+        if (btnRemoveLogo) btnRemoveLogo.classList.remove('hidden');
+
         checkSetupNotifications();
+    });
+
+    // 🌟 點擊叉叉刪除 Logo 的邏輯
+    btnRemoveLogo?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+
+        if (!currentStoreData || !currentStoreData.id) return;
+
+        const confirmed = await window.AppDialog.confirm('確定要移除品牌 Logo 嗎？', 'danger', '移除 Logo');
+        if (!confirmed) return;
+
+        const btn = e.currentTarget;
+        btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin text-gray-400"></i>';
+        lucide.createIcons();
+        btn.disabled = true;
+
+        try {
+            if (currentStoreData.logo_url) {
+                const filePath = currentStoreData.logo_url.split('/store-logos/')[1];
+                if (filePath) {
+                    await window.supabaseClient.storage.from('store-logos').remove([filePath]);
+                }
+            }
+
+            const { error } = await window.supabaseClient
+                .from('stores')
+                .update({ logo_url: null })
+                .eq('id', currentStoreData.id);
+
+            if (error) throw error;
+
+            currentStoreData.logo_url = null;
+            const prev = document.getElementById('setting-logo-preview');
+            const icon = document.getElementById('logo-placeholder-icon');
+
+            if (prev) { prev.src = ''; prev.classList.add('hidden'); }
+            if (icon) icon.classList.remove('hidden');
+
+            // 🌟 刪除後，將叉叉隱藏起來
+            btn.classList.add('hidden');
+
+            const statusEl = document.getElementById('logo-upload-status');
+            if (statusEl) statusEl.textContent = '✓ 已移除 Logo';
+            checkSetupNotifications();
+
+        } catch (err) {
+            window.AppDialog.alert('移除失敗：' + err.message, 'danger');
+        } finally {
+            btn.innerHTML = '<i data-lucide="x" class="w-4 h-4"></i>';
+            btn.disabled = false;
+            lucide.createIcons();
+        }
     });
 
     document.getElementById('btn-logout')?.addEventListener('click', async () => {
@@ -969,7 +1029,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (!products || products.length === 0) items.push({ icon: 'utensils', title: '新增第一道餐點', desc: '菜單目前是空的，顧客無法點餐', target: 'section-menu' });
         if (!tables || tables.length === 0) items.push({ icon: 'qr-code', title: '建立桌號與 QR Code', desc: '還沒有任何桌號，顧客無法掃碼', target: 'section-tables' });
-        if (!localStorage.getItem('seen-payment-settings')) items.push({ icon: 'banknote', title: '確認付款方式', desc: '請至設定頁確認您的收款方式', target: 'section-settings' });
 
         const notifList = document.getElementById('page-notif-list');
         const notifEmpty = document.getElementById('page-notif-empty');
@@ -1066,31 +1125,60 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnCancelContact) btnCancelContact.addEventListener('click', () => toggleContactModal(false));
 
     if (btnSendContact) {
-        btnSendContact.addEventListener('click', async () => {
-            const email = document.getElementById('contact-email').value.trim();
-            const message = document.getElementById('contact-message').value.trim();
-            if (!email || !message) return window.AppDialog.alert('請填寫聯絡信箱與問題描述！', 'warning');
+        // 🌟 點擊叉叉刪除 Logo 的邏輯 (終極修正版：清除記憶)
+        btnRemoveLogo?.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            e.preventDefault();
 
-            const originalHtml = btnSendContact.innerHTML;
-            btnSendContact.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> 傳送中...';
-            btnSendContact.disabled = true;
+            if (!currentStoreData || !currentStoreData.id) return;
+
+            const btn = btnRemoveLogo;
+
+            const confirmed = await window.AppDialog.confirm('確定要移除品牌 Logo 嗎？', 'danger', '移除 Logo');
+            if (!confirmed) return;
+
+            btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin text-gray-400"></i>';
             lucide.createIcons();
+            btn.disabled = true;
 
             try {
-                const response = await fetch('https://formspree.io/f/xlgpllpq', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email, message: message, subject: '【系統回報】來自 QR 點餐店家的訊息' })
-                });
-                if (!response.ok) throw new Error('發送失敗');
-                await new Promise(resolve => setTimeout(resolve, 1500));
-                window.AppDialog.alert('您的訊息已成功送出！我們會盡快回覆至您的信箱。', 'success');
-                toggleContactModal(false);
+                if (currentStoreData.logo_url) {
+                    const filePath = currentStoreData.logo_url.split('/store-logos/')[1];
+                    if (filePath) {
+                        await window.supabaseClient.storage.from('store-logos').remove([filePath]);
+                    }
+                }
+
+                const { error } = await window.supabaseClient
+                    .from('stores')
+                    .update({ logo_url: null })
+                    .eq('id', currentStoreData.id);
+
+                if (error) throw error;
+
+                currentStoreData.logo_url = null;
+                const prev = document.getElementById('setting-logo-preview');
+                const icon = document.getElementById('logo-placeholder-icon');
+                const fileInput = document.getElementById('setting-logo-file'); // 🌟 抓取檔案輸入框
+
+                if (prev) { prev.src = ''; prev.classList.add('hidden'); }
+                if (icon) icon.classList.remove('hidden');
+
+                // 🌟 關鍵：清空原本的檔案記憶，這樣才能再次觸發上傳！
+                if (fileInput) fileInput.value = '';
+
+                // 刪除後，將叉叉隱藏起來
+                btn.classList.add('hidden');
+
+                const statusEl = document.getElementById('logo-upload-status');
+                if (statusEl) statusEl.textContent = '✓ 已移除 Logo';
+                checkSetupNotifications();
+
             } catch (err) {
-                window.AppDialog.alert('發送失敗，請稍後再試或直接來信。', 'danger');
+                window.AppDialog.alert('移除失敗：' + err.message, 'danger');
             } finally {
-                btnSendContact.innerHTML = originalHtml;
-                btnSendContact.disabled = false;
+                btn.innerHTML = '<i data-lucide="x" class="w-4 h-4"></i>';
+                btn.disabled = false;
                 lucide.createIcons();
             }
         });
