@@ -238,6 +238,30 @@
         .flatpickr-day.today {
             border-color: #10b981 !important;
         }
+
+        /* 1. 將選取日期的「預設藍色」全面改成系統的「翡翠綠」 */
+        .flatpickr-day.selected,
+        .flatpickr-day.startRange,
+        .flatpickr-day.endRange,
+        .flatpickr-day.selected.inRange,
+        .flatpickr-day.startRange.inRange,
+        .flatpickr-day.endRange.inRange,
+        .flatpickr-day.selected:focus,
+        .flatpickr-day.startRange:focus,
+        .flatpickr-day.endRange:focus,
+        .flatpickr-day.selected:hover,
+        .flatpickr-day.startRange:hover,
+        .flatpickr-day.endRange:hover,
+        .flatpickr-day.selected.prevMonthDay,
+        .flatpickr-day.startRange.prevMonthDay,
+        .flatpickr-day.endRange.prevMonthDay,
+        .flatpickr-day.selected.nextMonthDay,
+        .flatpickr-day.startRange.nextMonthDay,
+        .flatpickr-day.endRange.nextMonthDay {
+            background: #10b981 !important;
+            border-color: #10b981 !important;
+            color: white !important;
+        }
     </style>
 </head>
 
@@ -591,12 +615,51 @@
             </div>
 
             <div id="section-reports" class="content-section hidden max-w-6xl mx-auto space-y-6 fade-in">
-                <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                    <h2 class="text-xl font-bold text-gray-800 mb-1">營收報表</h2>
-                    <div class="flex gap-2 mt-3">
-                        <button class="report-period-btn active" data-period="day">今日</button>
-                        <button class="report-period-btn" data-period="week">本週</button>
-                        <button class="report-period-btn" data-period="month">本月</button>
+                <div class="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm">
+                    <h2 class="text-xl font-bold text-gray-800 mb-5">營收報表</h2>
+
+                    <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-5">
+
+                        <div class="flex items-center bg-gray-50 rounded-xl p-1 shrink-0 w-fit border border-gray-100">
+                            <button
+                                class="report-filter-btn active px-5 py-2 text-sm font-bold rounded-lg transition-all bg-white text-emerald-600 shadow-sm"
+                                data-range="today">今日</button>
+                            <button
+                                class="report-filter-btn px-5 py-2 text-sm font-bold rounded-lg transition-all text-gray-500 hover:text-gray-800 hover:bg-gray-200/50"
+                                data-range="week">近7天</button>
+                            <button
+                                class="report-filter-btn px-5 py-2 text-sm font-bold rounded-lg transition-all text-gray-500 hover:text-gray-800 hover:bg-gray-200/50"
+                                data-range="month">本月</button>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2 text-sm w-full xl:w-auto">
+                            <span class="font-bold text-gray-500 mr-2 hidden sm:inline">自訂區間</span>
+                            <div class="flex items-center gap-2 flex-1 sm:flex-none">
+
+                                <div class="relative inline-block w-full sm:w-auto group">
+                                    <i data-lucide="calendar"
+                                        class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 pointer-events-none z-10 group-hover:scale-110 transition-transform"></i>
+                                    <input type="text" id="report-start-date" readonly
+                                        class="relative w-full sm:w-36 bg-white border border-gray-200 rounded-xl pl-10 pr-4 py-2 text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-emerald-500 hover:border-emerald-300 transition-all cursor-pointer shadow-sm placeholder-gray-400"
+                                        placeholder="開始日期">
+                                </div>
+
+                                <span class="text-gray-400 font-black">~</span>
+
+                                <div class="relative inline-block w-full sm:w-auto group">
+                                    <i data-lucide="calendar"
+                                        class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 pointer-events-none z-10 group-hover:scale-110 transition-transform"></i>
+                                    <input type="text" id="report-end-date" readonly
+                                        class="relative w-full sm:w-36 bg-white border border-gray-200 rounded-xl pl-10 pr-4 py-2 text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-emerald-500 hover:border-emerald-300 transition-all cursor-pointer shadow-sm placeholder-gray-400"
+                                        placeholder="結束日期">
+                                </div>
+
+                            </div>
+                            <button id="btn-custom-report"
+                                class="w-full sm:w-auto bg-gray-800 text-white px-5 py-2 rounded-xl font-bold hover:bg-gray-900 transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2 shrink-0 mt-2 sm:mt-0">
+                                <i data-lucide="search" class="w-4 h-4"></i> 查詢
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -739,36 +802,60 @@
                 </div>
 
                 <!-- Logo 上傳 -->
-                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-                        <i data-lucide="image" class="w-5 h-5 text-emerald-500"></i>
-                        <h3 class="font-bold text-gray-800">品牌 Logo</h3>
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
+
+                    <div class="px-6 py-4 border-b border-gray-50 flex items-center gap-3 bg-gray-50/30">
+                        <div
+                            class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
+                            <i data-lucide="image" class="w-4 h-4"></i>
+                        </div>
+                        <h3 class="font-bold text-gray-800 text-base">品牌 Logo</h3>
                     </div>
 
-                    <div class="p-6 flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                    <div class="p-6 flex flex-col gap-5">
 
-                        <div id="logo-preview-wrap"
-                            class="w-32 h-32 sm:w-40 sm:h-40 rounded-[1.5rem] border border-gray-200 flex items-center justify-center bg-white shrink-0 overflow-hidden shadow-sm relative">
-                            <i data-lucide="image" class="w-10 h-10 text-gray-300" id="logo-placeholder-icon"></i>
-                            <img id="setting-logo-preview"
-                                class="hidden w-full h-full object-cover absolute inset-0 z-10 bg-white">
-                        </div>
+                        <div class="flex items-center gap-5">
 
-                        <div class="flex-1 space-y-3 text-center sm:text-left flex flex-col justify-center">
-                            <p class="text-sm text-gray-500 leading-relaxed">
-                                建議上傳 <span class="font-bold text-gray-700">512×512px</span> 以上的高解析度圖片，支援 JPG / PNG
-                                格式。<br>
-                                清晰的品牌 Logo 能大幅提升顧客的信任感與點餐體驗。
-                            </p>
-                            <div class="pt-2">
-                                <label
-                                    class="inline-flex items-center justify-center gap-2 cursor-pointer bg-white border border-gray-200 hover:border-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 text-gray-600 font-bold py-2.5 px-6 rounded-xl transition-all text-sm shadow-sm active:scale-95">
-                                    <i data-lucide="upload-cloud" class="w-4 h-4"></i> 選擇圖片
+                            <div class="relative shrink-0 group">
+                                <label class="cursor-pointer block">
+                                    <div id="logo-preview-wrap"
+                                        class="w-24 h-24 sm:w-28 sm:h-28 rounded-[1.25rem] border-2 border-dashed border-gray-300 flex flex-col items-center justify-center bg-gray-50 overflow-hidden relative transition-all duration-200 group-hover:border-emerald-400 group-hover:bg-emerald-50 shadow-sm">
+                                        <div id="logo-placeholder-icon" class="flex flex-col items-center">
+                                            <i data-lucide="image-plus"
+                                                class="w-6 h-6 text-gray-300 mb-1 group-hover:text-emerald-500 transition-colors"></i>
+                                        </div>
+                                        <img id="setting-logo-preview"
+                                            class="hidden w-full h-full object-cover absolute inset-0 z-10 bg-white">
+                                    </div>
                                     <input type="file" id="setting-logo-file" accept="image/*" class="hidden">
                                 </label>
+
+                                <button id="btn-remove-logo"
+                                    class="hidden absolute -top-2.5 -right-2.5 z-20 w-7 h-7 bg-white rounded-full flex items-center justify-center text-red-500 border border-gray-100 shadow hover:bg-red-50 active:scale-95 transition-all"
+                                    title="刪除 Logo">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                </button>
                             </div>
-                            <p id="logo-upload-status" class="text-xs font-bold text-emerald-600"></p>
+
+                            <div class="flex-1 text-left min-w-0">
+                                <h4 class="text-gray-800 font-bold text-base sm:text-lg mb-1">上傳您的品牌商標</h4>
+                                <p class="text-[13px] sm:text-sm text-gray-500 leading-relaxed">
+                                    清晰的品牌 Logo 能大幅提升顧客的信任感。<br>
+                                    建議尺寸 <span
+                                        class="font-bold text-gray-700 bg-gray-100 px-1 py-0.5 rounded border border-gray-200 mx-0.5">512×512px</span>，支援
+                                    JPG/PNG。
+                                </p>
+                            </div>
                         </div>
+
+                        <div class="w-full">
+                            <label for="setting-logo-file"
+                                class="flex items-center justify-center gap-2 cursor-pointer bg-white border-2 border-gray-200 hover:border-emerald-500 hover:bg-emerald-50 text-gray-700 hover:text-emerald-600 font-bold py-3 px-5 rounded-xl transition-all text-sm shadow-sm active:scale-95 w-full">
+                                <i data-lucide="upload-cloud" class="w-4 h-4"></i> 選擇圖片檔案
+                            </label>
+                            <p id="logo-upload-status" class="text-sm font-bold text-emerald-600 mt-2 text-center"></p>
+                        </div>
+
                     </div>
                 </div>
 
@@ -818,8 +905,8 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <p class="font-bold text-gray-600">Line Pay</p>
-                                    <p class="text-xs text-gray-400 mt-0.5">LINE Pay 行動支付</p>
+                                    <p class="font-bold text-gray-600">行動支付</p>
+                                    <p class="text-xs text-gray-400 mt-0.5">Line Pay / Apple Pay</p>
                                 </div>
                             </div>
                             <span
