@@ -544,11 +544,22 @@
         const total = cart.reduce((s, c) => s + c.lineTotal, 0);
 
         const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-        const { count } = await window.supabaseClient.from('orders')
-            .select('*', { count: 'exact', head: true })
-            .eq('store_id', storeId).gte('created_at', todayStart.toISOString());
-        const dailyNumber = (count || 0) + 1;
 
+        // 🛡️ 防呆第一層：隨機微小延遲 (Jitter)，打散多桌「完全同時」按下的瞬間
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 400));
+
+        // 🛡️ 防呆第二層：改用 MAX() 找最大號碼，取代原本的 count()，避免刪除訂單後號碼重複
+        const { data: maxData } = await window.supabaseClient.from('orders')
+            .select('daily_number')
+            .eq('store_id', storeId)
+            .gte('created_at', todayStart.toISOString())
+            .order('daily_number', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        let dailyNumber = (maxData?.daily_number || 0) + 1;
+
+        // 1. 先將訂單寫入資料庫
         const { data: order, error } = await window.supabaseClient.from('orders').insert({
             store_id: storeId,
             table_name: tableName,
@@ -566,6 +577,36 @@
             return;
         }
 
+        // 🛡️ 防呆第三層：碰撞檢查 (Collision Check)
+        // 撈取今天「所有跟我拿一樣號碼」的訂單，按建立時間(精確到毫秒)排序
+        const { data: duplicates } = await window.supabaseClient.from('orders')
+            .select('id, created_at')
+            .eq('store_id', storeId)
+            .eq('daily_number', dailyNumber)
+            .gte('created_at', todayStart.toISOString())
+            .order('created_at', { ascending: true });
+
+        // 如果這個號碼有兩個人以上拿到，而且我「不是」第一個寫進去的 (手腳比別人慢幾毫秒)
+        if (duplicates && duplicates.length > 1 && duplicates[0].id !== order.id) {
+            // 重新撈取當下真正的最大號碼
+            const { data: realMax } = await window.supabaseClient.from('orders')
+                .select('daily_number')
+                .eq('store_id', storeId)
+                .gte('created_at', todayStart.toISOString())
+                .order('daily_number', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            // 認命更新成最新的號碼
+            dailyNumber = (realMax?.daily_number || dailyNumber) + 1;
+
+            // 幫這筆訂單更新成新號碼
+            await window.supabaseClient.from('orders')
+                .update({ daily_number: dailyNumber })
+                .eq('id', order.id);
+        }
+
+        // 2. 寫入訂單明細 (Order Items)
         await window.supabaseClient.from('order_items').insert(
             cart.map(c => ({
                 order_id: order.id,
@@ -578,6 +619,7 @@
             }))
         );
 
+        // 3. 清空購物車並顯示追蹤畫面 (傳入最終確認的號碼)
         cart = [];
         updateCartUI();
         hideModal('checkout-modal');
