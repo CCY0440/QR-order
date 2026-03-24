@@ -1,5 +1,5 @@
 // =============================================
-// order.js — 顧客點餐頁 (整頁進度追蹤 + 阻擋返回 + 行動支付)
+// order.js — 顧客點餐頁 (終極版：明細顯示、加點次數限制與提示)
 // =============================================
 (async function () {
     const params = new URLSearchParams(location.search);
@@ -11,43 +11,28 @@
         return;
     }
 
-    // ── 狀態 ──
     let allProducts = [];
     let cart = [];
     let currentProduct = null;
     let pmQty = 1;
     let realtimeChannel = null;
     let editingCartIndex = -1;
+    let isSubmittingOrder = false;
+    let allowAddon = true;
 
-    // ── 初始化 ──
-    document.getElementById('table-badge').textContent = tableName;
-
-    const { data: store } = await window.supabaseClient
-        .from('stores').select('name, logo_url, description, is_open').eq('id', storeId).single();
-
-    if (!store) { document.getElementById('menu-container').innerHTML = '<p class="text-center text-gray-500 py-20">找不到店家</p>'; return; }
-
-    document.title = store.name + ' · 點餐';
-    document.getElementById('store-name').textContent = store.name;
-    document.getElementById('closed-name').textContent = store.name;
-
-    if (store.logo_url) {
-        document.getElementById('store-logo').src = store.logo_url;
-        document.getElementById('store-logo').classList.remove('hidden');
-        document.getElementById('store-logo-fallback').classList.add('hidden');
+    // 🌟 共用：渲染客製化選項
+    function renderItemOptions(options) {
+        if (!options || typeof options !== 'object' || Object.keys(options).length === 0) return '';
+        const parts = Object.values(options).map(opt => {
+            if (opt.type === 'text') return `${opt.label}：${opt.value || ''}`;
+            const choices = (opt.choices || []).map(c => c.label).join('、');
+            return choices ? `${opt.label}：${choices}` : null;
+        }).filter(Boolean);
+        if (!parts.length) return '';
+        return parts.map(p =>
+            `<span class="text-[10px] text-gray-500 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5 font-medium inline-block">${p}</span>`
+        ).join(' ');
     }
-    if (store.description) {
-        document.getElementById('store-desc').textContent = store.description;
-        document.getElementById('store-desc-wrap').classList.remove('hidden');
-    }
-    if (store.is_open === false) {
-        document.getElementById('closed-overlay').classList.remove('hidden');
-        return;
-    }
-
-    await loadMenu();
-    subscribeRealtime();
-    lucide.createIcons();
 
     // ── 1. 載入菜單 ──
     async function loadMenu() {
@@ -135,7 +120,6 @@
             document.getElementById('menu-container').innerHTML = html || '<p class="text-center text-gray-400 py-20">目前沒有供應中的餐點</p>';
             updateMenuCardQty();
         } catch (e) {
-            console.error('loadMenu error:', e);
             document.getElementById('menu-container').innerHTML = '<p class="text-center text-red-500 py-20 font-bold">載入失敗，請重新整理</p>';
         }
     }
@@ -171,9 +155,7 @@
         e.stopPropagation();
         const p = allProducts.find(x => x.id === productId);
         if (!p) return;
-
         const hasOptions = p.product_options && p.product_options.length > 0;
-
         if (delta > 0) {
             if (hasOptions) {
                 openProductModal(productId);
@@ -203,8 +185,6 @@
         }
     };
 
-
-    // ── 2. 餐點 Modal ──
     window.openProductModal = function (productId, cartIdx = -1) {
         const p = allProducts.find(x => x.id === productId);
         if (!p) return;
@@ -371,11 +351,9 @@
         if (checkoutModal && !checkoutModal.classList.contains('hidden')) {
             openCheckout();
         }
-
         closeProductModal();
     };
 
-    // ── 3. 購物車 UI ──
     function updateCartUI() {
         const totalQty = cart.reduce((s, c) => s + c.qty, 0);
         const totalPrice = cart.reduce((s, c) => s + c.lineTotal, 0);
@@ -455,7 +433,6 @@
         }
     };
 
-    // ── 4. 結帳 ──
     function openCheckout() {
         if (cart.length === 0) return;
         const total = cart.reduce((s, c) => s + c.lineTotal, 0);
@@ -487,29 +464,6 @@
         `).join('');
         lucide.createIcons();
 
-        // 🌟 更新這裡的手機版結帳顯示：將 LINE Pay 修改為行動支付
-        const paymentHTML = `
-            <label class="block text-sm font-bold text-gray-700 mb-2">付款方式</label>
-            <div class="grid grid-cols-3 gap-2 mb-4">
-                <label class="relative flex flex-col items-center justify-center py-2.5 border-2 border-emerald-500 bg-emerald-50 rounded-xl cursor-pointer transition-all">
-                    <input type="radio" name="payment" value="cash" class="sr-only" checked>
-                    <i data-lucide="banknote" class="w-5 h-5 text-emerald-600 mb-1"></i>
-                    <span class="text-xs font-bold text-emerald-700">現金</span>
-                </label>
-                <label class="relative flex flex-col items-center justify-center py-2.5 border-2 border-gray-100 bg-gray-50 rounded-xl opacity-50 cursor-not-allowed">
-                    <input type="radio" name="payment" value="card" class="sr-only" disabled>
-                    <i data-lucide="credit-card" class="w-5 h-5 text-gray-400 mb-1"></i>
-                    <span class="text-[10px] font-bold text-gray-500">刷卡</span>
-                </label>
-                <label class="relative flex flex-col items-center justify-center py-2.5 border-2 border-gray-100 bg-gray-50 rounded-xl opacity-50 cursor-not-allowed">
-                    <input type="radio" name="payment" value="linepay" class="sr-only" disabled>
-                    <i data-lucide="smartphone" class="w-5 h-5 text-gray-400 mb-1"></i>
-                    <span class="text-[10px] font-bold text-gray-500">行動支付</span>
-                </label>
-            </div>
-        `;
-
-        // 如果 HTML 裡有預先寫好的付款區塊，直接將行動支付文字更新
         document.querySelectorAll('input[name="payment"][value="linepay"] ~ span').forEach(el => {
             el.textContent = '行動支付';
         });
@@ -535,113 +489,239 @@
     });
 
     document.getElementById('btn-confirm-order')?.addEventListener('click', async () => {
+        if (isSubmittingOrder) return;
+        isSubmittingOrder = true;
+
         const btn = document.getElementById('btn-confirm-order');
         btn.disabled = true;
-        btn.textContent = '送出中...';
+        btn.innerHTML = '<i data-lucide="loader" class="w-5 h-5 animate-spin"></i> 送出中...';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
 
-        const payment = document.querySelector('input[name="payment"]:checked')?.value || 'cash';
-        const note = document.getElementById('checkout-note')?.value.trim() || '';
-        const total = cart.reduce((s, c) => s + c.lineTotal, 0);
+        try {
+            const payment = document.querySelector('input[name="payment"]:checked')?.value || 'cash';
+            const note = document.getElementById('checkout-note')?.value.trim() || '';
+            const total = cart.reduce((s, c) => s + c.lineTotal, 0);
 
-        // 🌟 1. 直接寫入訂單！
-        // 我們不傳 daily_number，讓 Supabase 後端的 Trigger 自動幫我們發號碼！
-        const { data: order, error } = await window.supabaseClient.from('orders').insert({
-            store_id: storeId,
-            table_name: tableName,
-            status: 'pending',
-            total_price: total,
-            payment_method: payment,
-            is_paid: false,
-            note
-        }).select().single();
+            const activeOrders = JSON.parse(localStorage.getItem(`active_orders_${storeId}`) || '[]');
 
-        if (error || !order) {
+            let finalNote = note;
+            if (activeOrders.length > 0) {
+                finalNote = finalNote ? `【加點】 ${finalNote}` : '【加點】';
+            }
+
+            const { data: order, error } = await window.supabaseClient.from('orders').insert({
+                store_id: storeId,
+                table_name: tableName,
+                status: 'pending',
+                total_price: total,
+                payment_method: payment,
+                is_paid: false,
+                note: finalNote
+            }).select().single();
+
+            if (error || !order) throw new Error('送出失敗');
+
+            const finalDailyNumber = order.daily_number;
+
+            await window.supabaseClient.from('order_items').insert(
+                cart.map(c => ({
+                    order_id: order.id,
+                    product_id: c.product.id,
+                    product_name: c.product.name,
+                    product_price: c.product.price,
+                    quantity: c.qty,
+                    subtotal: c.lineTotal,
+                    options: Object.keys(c.options).length > 0 ? c.options : null
+                }))
+            );
+
+            cart = [];
+            updateCartUI();
+            hideModal('checkout-modal');
+
+            activeOrders.push({ orderId: order.id, dailyNumber: finalDailyNumber });
+            localStorage.setItem(`active_orders_${storeId}`, JSON.stringify(activeOrders));
+
+            window.renderTrackingPage();
+
+        } catch (error) {
             alert('送出失敗，請重試');
-            btn.disabled = false; btn.textContent = '送出訂單';
+        } finally {
+            setTimeout(() => {
+                isSubmittingOrder = false;
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="check-circle" class="w-5 h-5"></i> 送出訂單 · NT$ <span id="checkout-total">0</span>';
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }, 500);
+        }
+    });
+
+    const STATUS_CONFIG = {
+        pending: { step: 1, label: '待付款', icon: 'banknote', color: 'text-amber-500', bg: 'bg-amber-50', border: 'border-amber-200' },
+        confirmed: { step: 2, label: '已確認', icon: 'check-circle', color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-200' },
+        preparing: { step: 3, label: '製作中', icon: 'chef-hat', color: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-200' },
+        ready: { step: 4, label: '可取餐了', icon: 'bell-ring', color: 'text-emerald-500', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+        completed: { step: 5, label: '用餐愉快', icon: 'star', color: 'text-purple-500', bg: 'bg-purple-50', border: 'border-purple-200' },
+        cancelled: { step: 0, label: '訂單取消', icon: 'x-circle', color: 'text-red-500', bg: 'bg-red-50', border: 'border-red-200' },
+    };
+    const steps = ['pending', 'confirmed', 'preparing', 'ready', 'completed'];
+    const stepLabels = ['待付款', '已確認', '製作中', '可取餐', '完成'];
+
+    // ── 5. 訂單追蹤 (🌟 動態渲染多張訂單卡片 + 明細顯示) ──
+    window.renderTrackingPage = async function () {
+        let activeOrders = JSON.parse(localStorage.getItem(`active_orders_${storeId}`) || '[]');
+        if (activeOrders.length === 0) return;
+
+        // 🌟 額外抓取 order_items 顯示餐點明細
+        const { data: dbOrders } = await window.supabaseClient
+            .from('orders')
+            // 👇 補上 total_price 欄位！
+            .select('id, daily_number, status, note, created_at, total_price, order_items(product_name, quantity, subtotal, options)')
+            .in('id', activeOrders.map(o => o.orderId))
+            .order('created_at', { ascending: true });
+
+        if (!dbOrders || dbOrders.length === 0) {
+            localStorage.removeItem(`active_orders_${storeId}`);
             return;
         }
 
-        // 🌟 2. 拿回「資料庫保證不重複」的終極號碼
-        const finalDailyNumber = order.daily_number;
-
-        // 3. 寫入訂單明細
-        await window.supabaseClient.from('order_items').insert(
-            cart.map(c => ({
-                order_id: order.id,
-                product_id: c.product.id,
-                product_name: c.product.name,
-                product_price: c.product.price,
-                quantity: c.qty,
-                subtotal: c.lineTotal,
-                options: Object.keys(c.options).length > 0 ? c.options : null
-            }))
-        );
-
-        // 4. 清空購物車並顯示追蹤畫面 (傳入資料庫給的正確號碼)
-        cart = [];
-        updateCartUI();
-        hideModal('checkout-modal');
-        showOrderTracking(order.id, finalDailyNumber);
-    });
-
-    // ── 5. 訂單追蹤 (🌟 整頁顯示 + 阻擋上一頁 + 高質感警告窗) ──
-    window.showOrderTracking = function (orderId, dailyNumber) {
-        const STATUS_CONFIG = {
-            pending: { step: 1, label: '待付款', icon: 'banknote', color: 'text-amber-500', bg: 'bg-amber-50', border: 'border-amber-200' },
-            confirmed: { step: 2, label: '已確認', icon: 'check-circle', color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-200' },
-            preparing: { step: 3, label: '製作中', icon: 'chef-hat', color: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-200' },
-            ready: { step: 4, label: '可取餐了', icon: 'bell-ring', color: 'text-emerald-500', bg: 'bg-emerald-50', border: 'border-emerald-200' },
-            completed: { step: 5, label: '用餐愉快', icon: 'star', color: 'text-purple-500', bg: 'bg-purple-50', border: 'border-purple-200' },
-            cancelled: { step: 0, label: '訂單取消', icon: 'x-circle', color: 'text-red-500', bg: 'bg-red-50', border: 'border-red-200' },
-        };
-        const steps = ['pending', 'confirmed', 'preparing', 'ready', 'completed'];
-        const stepLabels = ['待付款', '已確認', '製作中', '可取餐', '完成'];
-
-        // 🌟 隱藏原本菜單的背景
         const mainHeader = document.querySelector('header');
         const mainContent = document.querySelector('.max-w-6xl');
         const mobileCart = document.getElementById('cart-bar');
+
         if (mainHeader) mainHeader.classList.add('hidden');
         if (mainContent) mainContent.classList.add('hidden');
         if (mobileCart) mobileCart.classList.add('hidden');
 
-        // 🌟 注入全螢幕追蹤頁面 + 高質感警告彈窗 HTML
+        const existingTracking = document.getElementById('tracking-page');
+        if (existingTracking) existingTracking.remove();
+        const existingFloatBtn = document.getElementById('floating-tracking-btn');
+        if (existingFloatBtn) existingFloatBtn.remove();
+
+        if (realtimeChannel) { window.supabaseClient.removeChannel(realtimeChannel); }
+
+        // 🌟 限制只能加點 1 次 (主單 + 加點單 = 最多 2 單)
+        const hideAddonBtn = !allowAddon || activeOrders.length >= 2;
+
+        let cardsHtml = dbOrders.map((o, idx) => {
+            const isAddOn = idx > 0;
+            const cfg = STATUS_CONFIG[o.status] || STATUS_CONFIG.pending;
+            const badgeHtml = isAddOn
+                ? `<span class="text-xs font-bold bg-red-50 text-red-500 border border-red-100 px-2 py-1 rounded-lg shadow-sm">加點單</span>`
+                : `<span class="text-xs font-bold bg-blue-50 text-blue-500 border border-blue-100 px-2 py-1 rounded-lg shadow-sm">主單</span>`;
+
+            let descHtml = '請到櫃檯付款，完成後廚房即開始製作';
+            if (o.status === 'cancelled') {
+                descHtml = `很抱歉，此訂單已被取消。<button onclick="window.removeOrderCard('${o.id}')" class="mt-3 w-full py-2.5 bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 rounded-xl font-bold transition-all active:scale-95 text-sm flex justify-center items-center gap-1.5"><i data-lucide="x" class="w-4 h-4"></i> 移除此單並重新點餐</button>`;
+            } else if (o.status === 'confirmed') descHtml = '付款已確認！<br>廚房馬上開始為您準備 ✅';
+            else if (o.status === 'preparing') descHtml = '廚師正在精心製作您的餐點 🍳';
+            else if (o.status === 'ready') descHtml = '餐點已準備好，請至櫃檯領取！';
+            else if (o.status === 'completed') descHtml = '感謝您的光臨，祝您用餐愉快！';
+
+            const currentStep = steps.indexOf(o.status);
+            const pct = currentStep > 0 ? (currentStep / (steps.length - 1)) * 100 : 0;
+
+            // 🌟 渲染每張卡片底下的餐點明細 (加入金額顯示)
+            const itemsHtml = (o.order_items || []).map(item => {
+                const optHtml = renderItemOptions(item.options);
+                return `
+                <div class="flex items-start justify-between py-2 border-b border-gray-200/60 last:border-0">
+                    <div class="flex-1 pr-2 min-w-0">
+                        <p class="font-bold text-gray-700 text-sm">${item.product_name}</p>
+                        ${optHtml ? `<div class="flex flex-wrap gap-1 mt-1">${optHtml}</div>` : ''}
+                    </div>
+                    <div class="flex items-center gap-3 shrink-0 mt-0.5">
+                        <span class="text-gray-400 font-mono text-xs">×${item.quantity}</span>
+                        <span class="font-bold text-gray-800 w-16 text-right text-xs">NT$ ${(item.subtotal || 0).toLocaleString()}</span>
+                    </div>
+                </div>`;
+            }).join('');
+
+            return `
+            <div class="mb-5 bg-white rounded-3xl shadow-sm border border-gray-100 p-6 relative overflow-hidden" id="track-card-${o.id}">
+                <div class="flex justify-between items-center mb-5">
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-sm font-bold text-gray-400">取餐號</span>
+                        <span class="font-black text-2xl text-emerald-600 tracking-wider">#${String(o.daily_number).padStart(3, '0')}</span>
+                    </div>
+                    ${badgeHtml}
+                </div>
+                
+                <div class="flex items-center gap-5 mb-6">
+                    <div id="status-icon-wrap-${o.id}" class="w-16 h-16 shrink-0 rounded-full flex items-center justify-center transition-all duration-500 ${cfg.bg} border-4 ${cfg.border}">
+                        <i id="status-icon-${o.id}" data-lucide="${cfg.icon}" class="w-8 h-8 ${cfg.color}"></i>
+                    </div>
+                    <div>
+                        <h2 id="status-label-${o.id}" class="text-xl font-black text-gray-800">${cfg.label}</h2>
+                        <div id="status-desc-${o.id}" class="text-xs font-bold text-gray-500 mt-1.5 leading-relaxed">${descHtml}</div>
+                    </div>
+                </div>
+
+                <div class="relative flex justify-between px-1 mt-2 mb-6">
+                    <div class="absolute left-3 right-3 top-3 h-1.5 bg-gray-100 rounded-full -z-0">
+                        <div id="progress-fill-${o.id}" class="h-full bg-emerald-400 rounded-full transition-all duration-700" style="width:${pct}%"></div>
+                    </div>
+                    ${steps.map((s, i) => {
+                let dotClass = 'bg-white border-gray-200 text-gray-400';
+                let lblClass = 'text-gray-400';
+                let dotContent = i + 1;
+                if (i < currentStep) {
+                    dotClass = 'bg-emerald-500 border-emerald-500 text-white';
+                    dotContent = '<i data-lucide="check" class="w-3.5 h-3.5"></i>';
+                    lblClass = 'text-emerald-500';
+                } else if (i === currentStep) {
+                    dotClass = `${cfg.bg} ${cfg.border} ${cfg.color}`;
+                    lblClass = `${cfg.color}`;
+                }
+                return `
+                        <div class="flex flex-col items-center gap-2 z-10">
+                            <div id="step-dot-${o.id}-${i}" class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black border-[3px] transition-all duration-500 ${dotClass}">${dotContent}</div>
+                            <span id="step-label-${o.id}-${i}" class="text-[10px] font-bold whitespace-nowrap ${lblClass}">${stepLabels[i]}</span>
+                        </div>`
+            }).join('')}
+                </div>
+
+                <div class="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                    <p class="text-[11px] font-bold text-gray-400 mb-2 uppercase tracking-wider">餐點明細</p>
+                    <div class="flex flex-col">
+                        ${itemsHtml}
+                    </div>
+                    <div class="flex justify-between items-center pt-3 mt-2 border-t border-gray-200/80">
+                        <span class="font-bold text-gray-600 text-sm">小計</span>
+                        <span class="font-black text-lg text-gray-800">NT$ ${(o.total_price || 0).toLocaleString()}</span>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+
+        // 🌟 溫馨提醒文字：已加點 / 還可加點
+        let topNoticeHtml = '';
+        if (activeOrders.length >= 2) {
+            topNoticeHtml = `<div class="bg-red-50 border border-red-200 text-red-600 text-[13px] font-bold px-4 py-3 rounded-2xl flex items-center gap-2 mb-4 shadow-sm"><i data-lucide="alert-circle" class="w-5 h-5 shrink-0 text-red-500"></i>您已使用過加點功能，每筆訂單僅限加點一次喔！</div>`;
+        } else if (activeOrders.length === 1 && allowAddon) {
+            topNoticeHtml = `<div class="bg-blue-50 border border-blue-200 text-blue-600 text-[13px] font-bold px-4 py-3 rounded-2xl flex items-center gap-2 mb-4 shadow-sm"><i data-lucide="info" class="w-5 h-5 shrink-0 text-blue-500"></i>💡 若有需要，您還可以再加點一次餐點喔！</div>`;
+        }
+
         const html = `
         <div id="tracking-page" class="fixed inset-0 z-[9999] bg-[#f8fafc] flex flex-col overflow-y-auto">
-            <div class="w-full max-w-md mx-auto bg-white min-h-screen shadow-sm flex flex-col relative pb-10 border-x border-gray-50">
-                <div class="px-5 py-4 border-b border-gray-100 flex justify-center items-center bg-white sticky top-0 z-10 shadow-sm">
+            <div class="w-full max-w-md mx-auto min-h-screen flex flex-col relative pb-10">
+                <div class="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10 shadow-sm">
                     <h3 class="font-black text-gray-800 text-lg tracking-wide">訂單進度</h3>
+                    <button id="btn-back-to-menu" class="text-sm font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 active:scale-95 transition-all flex items-center gap-1 ${hideAddonBtn ? 'hidden' : ''}">
+                        <i data-lucide="plus" class="w-4 h-4"></i> 加點餐點
+                    </button>
                 </div>
-                <div class="flex-1 p-6 flex flex-col gap-6 mt-4">
-                    <div class="text-center">
-                        <p class="text-sm font-bold text-gray-400 mb-2">您的取餐號碼</p>
-                        <div class="inline-flex items-center gap-2 bg-emerald-50 border-2 border-emerald-200 rounded-3xl px-8 py-4 shadow-sm">
-                            <span class="font-mono font-black text-emerald-600 tracking-widest text-4xl">#${String(dailyNumber).padStart(3, '0')}</span>
-                        </div>
-                        <p class="text-sm font-bold text-gray-500 mt-4"><i data-lucide="map-pin" class="w-4 h-4 inline-block mr-1 mb-0.5"></i>${tableName}</p>
-                    </div>
-
-                    <div id="status-card" class="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-8 text-center transition-all duration-500 mt-2">
-                        <div id="status-icon-wrap" class="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-5 transition-all duration-500 bg-amber-50 border-4 border-amber-200 shadow-sm">
-                            <i id="status-icon" data-lucide="banknote" class="w-12 h-12 text-amber-500"></i>
-                        </div>
-                        <h2 id="status-label" class="text-2xl font-black text-gray-800 mb-2">待付款</h2>
-                        <p id="status-desc" class="text-sm font-bold text-gray-500 leading-relaxed">請到櫃檯付款，完成後廚房即開始製作</p>
-                    </div>
-
-                    <div class="relative flex justify-between px-2 mt-4 mb-4">
-                        <div class="absolute left-4 right-4 top-4 h-1.5 bg-gray-100 rounded-full -z-0">
-                            <div id="progress-fill" class="h-full bg-emerald-400 rounded-full transition-all duration-700 shadow-sm" style="width:0%"></div>
-                        </div>
-                        ${steps.map((s, i) => `
-                        <div class="flex flex-col items-center gap-2.5 z-10" id="step-dot-wrap-${i}">
-                            <div id="step-dot-${i}" class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-black border-[3px] transition-all duration-500 bg-white border-gray-200 text-gray-400">${i + 1}</div>
-                            <span class="text-[11px] font-bold text-gray-400 whitespace-nowrap" id="step-label-${i}">${stepLabels[i]}</span>
-                        </div>`).join('')}
-                    </div>
+                <div class="flex-1 p-5 flex flex-col mt-2" id="tracking-cards-container">
+                    ${topNoticeHtml}
+                    ${cardsHtml}
                 </div>
             </div>
         </div>
+
+        <button id="floating-tracking-btn" class="fixed bottom-24 right-4 z-[40] bg-amber-500 hover:bg-amber-600 text-white p-3.5 rounded-full shadow-lg shadow-amber-500/30 transition-all active:scale-95 hidden group">
+            <i data-lucide="bell-ring" class="w-6 h-6 animate-pulse"></i>
+            <span class="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-xs font-bold px-2 py-1 rounded shadow-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">查看進度</span>
+        </button>
 
         <div id="custom-alert-modal" class="fixed inset-0 z-[10000] flex items-center justify-center p-4 hidden transition-opacity duration-300 opacity-0">
             <div class="absolute inset-0 bg-gray-900/70 backdrop-blur-sm" id="btn-close-alert-bg"></div>
@@ -657,36 +737,50 @@
             </div>
         </div>
         `;
-
         document.body.insertAdjacentHTML('beforeend', html);
         if (typeof lucide !== 'undefined') lucide.createIcons();
-        updateStatusUI('pending');
 
-        // 🌟 防呆設計：替換成我們自己寫的高質感彈窗
-        window.location.hash = 'tracking';
-        window.onpopstate = function () {
-            if (window.location.hash !== '#tracking') {
-                window.location.hash = 'tracking'; // 把網址拉回來
+        // 綁定按鈕
+        const backBtn = document.getElementById('btn-back-to-menu');
+        if (backBtn) {
+            backBtn.onclick = () => {
+                document.getElementById('tracking-page').classList.add('hidden');
+                if (mainHeader) mainHeader.classList.remove('hidden');
+                if (mainContent) mainContent.classList.remove('hidden');
+                if (mobileCart) mobileCart.classList.remove('hidden');
+                document.getElementById('floating-tracking-btn').classList.remove('hidden');
+                updateCartUI();
+                window.onpopstate = null;
+            };
+        }
 
-                // 顯示客製化警告彈窗
-                const alertModal = document.getElementById('custom-alert-modal');
-                if (alertModal) {
-                    alertModal.classList.remove('hidden');
-                    setTimeout(() => {
-                        alertModal.classList.remove('opacity-0');
-                        alertModal.querySelector('.modal-card').classList.remove('scale-95');
-                    }, 10);
+        document.getElementById('floating-tracking-btn').onclick = () => {
+            document.getElementById('tracking-page').classList.remove('hidden');
+            if (mainHeader) mainHeader.classList.add('hidden');
+            if (mainContent) mainContent.classList.add('hidden');
+            if (mobileCart) mobileCart.classList.add('hidden');
+            document.getElementById('floating-tracking-btn').classList.add('hidden');
+            setupBackLock();
+        };
+
+        function setupBackLock() {
+            window.location.hash = 'tracking';
+            window.onpopstate = function () {
+                if (window.location.hash !== '#tracking') {
+                    window.location.hash = 'tracking';
+                    const alertModal = document.getElementById('custom-alert-modal');
+                    if (alertModal) {
+                        alertModal.classList.remove('hidden');
+                        setTimeout(() => {
+                            alertModal.classList.remove('opacity-0');
+                            alertModal.querySelector('.modal-card').classList.remove('scale-95');
+                        }, 10);
+                    }
                 }
-            }
-        };
+            };
+        }
+        setupBackLock();
 
-        window.onbeforeunload = function (e) {
-            e.preventDefault();
-            e.returnValue = '您的餐點正在準備中，確定要離開嗎？';
-            return '您的餐點正在準備中，確定要離開嗎？';
-        };
-
-        // 綁定關閉警告窗的邏輯
         function closeCustomAlert() {
             const alertModal = document.getElementById('custom-alert-modal');
             if (alertModal) {
@@ -698,63 +792,94 @@
         document.getElementById('btn-close-custom-alert').onclick = closeCustomAlert;
         document.getElementById('btn-close-alert-bg').onclick = closeCustomAlert;
 
-        // 即時追蹤邏輯
+        // 監聽所有活躍的訂單
         realtimeChannel = window.supabaseClient
-            .channel(`order-tracking-${orderId}`)
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` },
-                payload => updateStatusUI(payload.new.status))
+            .channel('orders-tracking-multi')
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `store_id=eq.${storeId}` },
+                payload => {
+                    let currentActive = JSON.parse(localStorage.getItem(`active_orders_${storeId}`) || '[]');
+                    if (currentActive.some(o => o.orderId === payload.new.id)) {
+                        updateSingleStatusUI(payload.new.id, payload.new.status);
+                    }
+                })
             .subscribe();
+    };
 
-        function updateStatusUI(status) {
-            const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
-            const currentStep = steps.indexOf(status);
+    window.removeOrderCard = function (orderId) {
+        let activeOrders = JSON.parse(localStorage.getItem(`active_orders_${storeId}`) || '[]');
+        activeOrders = activeOrders.filter(o => o.orderId !== orderId);
+        localStorage.setItem(`active_orders_${storeId}`, JSON.stringify(activeOrders));
 
-            document.getElementById('status-icon-wrap').className = `w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-5 transition-all duration-500 shadow-sm ${cfg.bg} border-4 ${cfg.border}`;
-            document.getElementById('status-icon').setAttribute('data-lucide', cfg.icon);
-            document.getElementById('status-icon').className = `w-12 h-12 ${cfg.color}`;
-            document.getElementById('status-label').textContent = cfg.label;
+        const card = document.getElementById(`track-card-${orderId}`);
+        if (card) {
+            card.classList.add('opacity-0', 'scale-95');
+            setTimeout(() => card.remove(), 300);
+        }
 
-            const descs = {
-                pending: '請到櫃檯出示號碼並付款<br>完成後廚房即開始製作',
-                confirmed: '付款已確認！<br>廚房馬上開始為您準備 ✅',
-                preparing: '廚師正在精心製作您的餐點 🍳',
-                ready: '餐點已準備好，請至櫃檯領取！',
-                completed: '感謝您的光臨，祝您用餐愉快！',
-                cancelled: '很抱歉，此訂單已被取消。',
-            };
-            document.getElementById('status-desc').innerHTML = descs[status] || '';
-
-            const pct = currentStep > 0 ? (currentStep / (steps.length - 1)) * 100 : 0;
-            document.getElementById('progress-fill').style.width = pct + '%';
-
-            steps.forEach((s, i) => {
-                const dot = document.getElementById(`step-dot-${i}`);
-                const lbl = document.getElementById(`step-label-${i}`);
-                if (!dot) return;
-
-                if (i < currentStep) {
-                    dot.className = 'w-9 h-9 rounded-full flex items-center justify-center text-sm font-black border-[3px] transition-all duration-500 bg-emerald-500 border-emerald-500 text-white';
-                    dot.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i>';
-                    lbl.className = 'text-[11px] font-bold text-emerald-500 whitespace-nowrap';
-                } else if (i === currentStep) {
-                    dot.className = `w-9 h-9 rounded-full flex items-center justify-center text-sm font-black border-[3px] transition-all duration-500 ${cfg.bg} ${cfg.border} ${cfg.color}`;
-                    dot.textContent = i + 1;
-                    lbl.className = `text-[11px] font-black whitespace-nowrap ${cfg.color}`;
-                } else {
-                    dot.className = 'w-9 h-9 rounded-full flex items-center justify-center text-sm font-black border-[3px] transition-all duration-500 bg-white border-gray-200 text-gray-400';
-                    dot.textContent = i + 1;
-                    lbl.className = 'text-[11px] font-bold text-gray-400 whitespace-nowrap';
-                }
-            });
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-
-            // 🌟 訂單如果完成或取消，就解除「上一頁」的封印
-            if (status === 'completed' || status === 'cancelled') {
-                window.onpopstate = null;
-                window.onbeforeunload = null;
-            }
+        if (activeOrders.length === 0) {
+            window.onpopstate = null;
+            localStorage.removeItem(`active_orders_${storeId}`);
+            document.getElementById('tracking-page')?.classList.add('hidden');
+            document.querySelector('header')?.classList.remove('hidden');
+            document.querySelector('.max-w-6xl')?.classList.remove('hidden');
+            document.getElementById('cart-bar')?.classList.remove('hidden');
+            document.getElementById('floating-tracking-btn')?.classList.add('hidden');
+            cart = []; updateCartUI();
         }
     };
+
+    function updateSingleStatusUI(orderId, status) {
+        const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
+        const currentStep = steps.indexOf(status);
+
+        const iconWrap = document.getElementById(`status-icon-wrap-${orderId}`);
+        if (!iconWrap) return;
+
+        const icon = document.getElementById(`status-icon-${orderId}`);
+        const label = document.getElementById(`status-label-${orderId}`);
+        const desc = document.getElementById(`status-desc-${orderId}`);
+        const fill = document.getElementById(`progress-fill-${orderId}`);
+
+        iconWrap.className = `w-16 h-16 shrink-0 rounded-full flex items-center justify-center transition-all duration-500 ${cfg.bg} border-4 ${cfg.border}`;
+        icon.setAttribute('data-lucide', cfg.icon);
+        icon.className = `w-8 h-8 ${cfg.color}`;
+        label.textContent = cfg.label;
+
+        if (status === 'cancelled') {
+            desc.innerHTML = `很抱歉，此訂單已被取消。<button onclick="window.removeOrderCard('${orderId}')" class="mt-3 w-full py-2.5 bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 rounded-xl font-bold transition-all active:scale-95 text-sm flex justify-center items-center gap-1.5"><i data-lucide="x" class="w-4 h-4"></i> 移除此單並重新點餐</button>`;
+        } else if (status === 'confirmed') desc.innerHTML = '付款已確認！<br>廚房馬上開始為您準備 ✅';
+        else if (status === 'preparing') desc.innerHTML = '廚師正在精心製作您的餐點 🍳';
+        else if (status === 'ready') desc.innerHTML = '餐點已準備好，請至櫃檯領取！';
+        else if (status === 'completed') desc.innerHTML = '感謝您的光臨，祝您用餐愉快！';
+
+        const pct = currentStep > 0 ? (currentStep / (steps.length - 1)) * 100 : 0;
+        fill.style.width = pct + '%';
+
+        steps.forEach((s, i) => {
+            const dot = document.getElementById(`step-dot-${orderId}-${i}`);
+            const lbl = document.getElementById(`step-label-${orderId}-${i}`);
+            if (!dot) return;
+
+            if (i < currentStep) {
+                dot.className = 'w-7 h-7 rounded-full flex items-center justify-center text-xs font-black border-[3px] transition-all duration-500 bg-emerald-500 border-emerald-500 text-white';
+                dot.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5"></i>';
+                lbl.className = 'text-[10px] font-bold text-emerald-500 whitespace-nowrap';
+            } else if (i === currentStep) {
+                dot.className = `w-7 h-7 rounded-full flex items-center justify-center text-xs font-black border-[3px] transition-all duration-500 ${cfg.bg} ${cfg.border} ${cfg.color}`;
+                dot.textContent = i + 1;
+                lbl.className = `text-[10px] font-black whitespace-nowrap ${cfg.color}`;
+            } else {
+                dot.className = 'w-7 h-7 rounded-full flex items-center justify-center text-xs font-black border-[3px] transition-all duration-500 bg-white border-gray-200 text-gray-400';
+                dot.textContent = i + 1;
+                lbl.className = 'text-[10px] font-bold text-gray-400 whitespace-nowrap';
+            }
+        });
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        if (status === 'completed') {
+            setTimeout(() => { window.removeOrderCard(orderId); }, 3000);
+        }
+    }
 
     function subscribeRealtime() {
         window.supabaseClient
@@ -763,6 +888,15 @@
                 payload => {
                     if (payload.new.is_open === false) document.getElementById('closed-overlay').classList.remove('hidden');
                     else document.getElementById('closed-overlay').classList.add('hidden');
+
+                    if (payload.new.allow_addon !== undefined) {
+                        allowAddon = payload.new.allow_addon;
+                        const backBtn = document.getElementById('btn-back-to-menu');
+                        if (backBtn) {
+                            if (!allowAddon) backBtn.classList.add('hidden');
+                            else backBtn.classList.remove('hidden');
+                        }
+                    }
                 })
             .subscribe();
     }
@@ -785,4 +919,63 @@
         setTimeout(() => m.classList.add('hidden'), 300);
     }
 
+    function migrateLocalStorage() {
+        const oldData = localStorage.getItem(`active_order_${storeId}`);
+        if (oldData) {
+            try {
+                const parsed = JSON.parse(oldData);
+                localStorage.setItem(`active_orders_${storeId}`, JSON.stringify([parsed]));
+                localStorage.removeItem(`active_order_${storeId}`);
+            } catch (e) { }
+        }
+    }
+
+    async function init() {
+        document.getElementById('table-badge').textContent = tableName;
+
+        const { data: store } = await window.supabaseClient
+            .from('stores').select('name, logo_url, description, is_open, allow_addon').eq('id', storeId).single();
+
+        if (!store) { document.getElementById('menu-container').innerHTML = '<p class="text-center text-gray-500 py-20">找不到店家</p>'; return; }
+
+        document.title = store.name + ' · 點餐';
+        document.getElementById('store-name').textContent = store.name;
+        document.getElementById('closed-name').textContent = store.name;
+
+        allowAddon = store.allow_addon !== false;
+
+        if (store.logo_url) {
+            document.getElementById('store-logo').src = store.logo_url;
+            document.getElementById('store-logo').classList.remove('hidden');
+            document.getElementById('store-logo-fallback').classList.add('hidden');
+        }
+        if (store.description) {
+            document.getElementById('store-desc').textContent = store.description;
+            document.getElementById('store-desc-wrap').classList.remove('hidden');
+        }
+        if (store.is_open === false) {
+            document.getElementById('closed-overlay').classList.remove('hidden');
+            return;
+        }
+
+        migrateLocalStorage();
+
+        const activeOrdersJson = localStorage.getItem(`active_orders_${storeId}`);
+        if (activeOrdersJson) {
+            try {
+                const activeOrders = JSON.parse(activeOrdersJson);
+                if (activeOrders.length > 0) {
+                    window.renderTrackingPage();
+                }
+            } catch (e) {
+                localStorage.removeItem(`active_orders_${storeId}`);
+            }
+        }
+
+        await loadMenu();
+        subscribeRealtime();
+        lucide.createIcons();
+    }
+
+    init();
 })();
