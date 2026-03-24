@@ -374,10 +374,22 @@
                 <div class="w-px h-6 bg-gray-200"></div>
 
                 <div id="header-order-icon"
-                    class="relative p-1.5 text-gray-400 transition-colors flex items-center justify-center">
-                    <i data-lucide="clipboard-list" class="w-5 h-5"></i>
+                    class="relative p-1.5 text-gray-400 transition-colors flex items-center justify-center cursor-pointer hover:bg-gray-50 rounded-lg">
+                    <i data-lucide="clipboard-list" class="w-5 h-5 pointer-events-none"></i>
                     <span id="header-order-count"
-                        class="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full hidden border-2 border-white shadow-sm leading-tight min-w-[20px] text-center">0</span>
+                        class="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full hidden border-2 border-white shadow-sm leading-tight min-w-[20px] text-center pointer-events-none">0</span>
+
+                    <div id="notif-dropdown"
+                        class="absolute top-full mt-3 right-0 w-72 bg-white border border-gray-100 rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] hidden z-50 overflow-hidden transform opacity-0 scale-95 transition-all origin-top-right">
+                        <div class="px-4 py-3 border-b border-gray-50 bg-gray-50/80 flex justify-between items-center">
+                            <span class="text-sm font-black text-gray-700">新進訂單通知</span>
+                            <button id="btn-clear-notifs"
+                                class="text-[11px] font-bold text-gray-400 hover:text-gray-600 transition-colors">清除全部</button>
+                        </div>
+                        <div id="notif-list" class="max-h-72 overflow-y-auto divide-y divide-gray-50">
+                            <div class="p-6 text-center text-gray-400 text-sm">目前沒有新訂單</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </header>
@@ -424,7 +436,7 @@
 
                 <div>
                     <h3 class="font-bold text-gray-800 text-lg mb-4 flex items-center gap-2">
-                        即時訂單動態1
+                        即時訂單動態
                         <span id="ov-realtime-dot" class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
                     </h3>
                     <div id="ov-orders-list" class="space-y-4 min-h-[80px]">
@@ -798,6 +810,23 @@
                                 <i data-lucide="save" class="w-4 h-4"></i> 儲存基本資料
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
+                    <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+                        <i data-lucide="utensils" class="w-5 h-5 text-emerald-500"></i>
+                        <h3 class="font-bold text-gray-800">點餐功能設定</h3>
+                    </div>
+                    <div class="p-6 flex items-center justify-between">
+                        <div class="pr-4">
+                            <p class="font-bold text-gray-700 text-base">開放顧客加點</p>
+                            <p class="text-xs text-gray-400 mt-1 leading-relaxed">開啟後，顧客送出訂單後可於進度畫面中再次加點（每單限加點一次）</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                            <input type="checkbox" id="setting-allow-addon" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </label>
                     </div>
                 </div>
 
