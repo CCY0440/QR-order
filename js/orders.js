@@ -1,5 +1,5 @@
 // =============================================
-// orders.js — 訂單管理模組 (含頂部與側邊欄通知更新)
+// orders.js — 訂單管理模組 (終極防禦雙胞胎訂單版)
 // =============================================
 
 (async function () {
@@ -8,6 +8,10 @@
     let currentFilter = 'all';
     let realtimeChannel = null;
     let isFirstLoad = true;
+    let unreadOrders = []; // 🌟 負責記錄右上角的未讀通知
+
+    // 🌟 終極保鑣：記錄目前正在排隊等候抓取的訂單 ID
+    const processingNewOrders = new Set();
 
     const STATUS_CONFIG = {
         pending: { label: '未付款', icon: 'banknote', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200', pulse: true },
@@ -124,9 +128,6 @@
             });
         }
 
-        // ==========================================
-        // 🌟 1. 更新左側邊欄「處理中」的訂單總數
-        // ==========================================
         const activeOrdersCount = allOrders.filter(o => ['pending', 'confirmed', 'preparing', 'ready'].includes(o.status)).length;
         const sidebarBadge = document.getElementById('sidebar-orders-badge');
         if (sidebarBadge) {
@@ -138,9 +139,6 @@
             }
         }
 
-        // ==========================================
-        // 🌟 2. 更新右上角「待確認」訂單數字
-        // ==========================================
         const pendingCount = allOrders.filter(o => o.status === 'pending').length;
         const headerCountBadge = document.getElementById('header-order-count');
         if (headerCountBadge) {
@@ -166,6 +164,18 @@
         const canCancel = ['pending', 'confirmed', 'preparing'].includes(order.status);
         const cancelLabel = order.status === 'pending' ? '拒絕接單' : '取消訂單';
 
+        let displayNote = order.note || '';
+        let isAddOn = false;
+
+        if (displayNote.includes('【加點】')) {
+            isAddOn = true;
+            displayNote = displayNote.replace('【加點】', '').trim();
+        }
+
+        const displayTableName = isAddOn
+            ? `${order.table_name} <span class="text-red-500 ml-1 font-black">| 加點</span>`
+            : order.table_name;
+
         let actionBtnHtml = '';
         if (order.status === 'pending') {
             actionBtnHtml = `<button class="action-btn flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-800 text-white font-bold text-sm transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-sm" data-id="${order.id}" data-action="pay_and_prepare">
@@ -187,7 +197,7 @@
                     </div>
                     <div class="w-px h-10 bg-gray-200"></div>
                     <div>
-                        <div class="font-black text-gray-800 text-lg leading-tight">${order.table_name}</div>
+                        <div class="font-black text-gray-800 text-lg leading-tight">${displayTableName}</div>
                         <div class="text-[10px] text-gray-500 mt-1">${pay}</div>
                     </div>
                 </div>
@@ -210,7 +220,7 @@
                             <span class="text-gray-700 font-bold">${item.product_name}</span>
                             <div class="flex items-center gap-3 shrink-0 ml-3">
                                 <span class="text-gray-400 font-mono text-xs">×${item.quantity}</span>
-                                <span class="font-bold text-gray-700 w-16 text-right text-xs">NT$${item.subtotal.toLocaleString()}</span>
+                                <span class="font-bold text-gray-700 w-16 text-right text-xs">NT$${(item.subtotal || 0).toLocaleString()}</span>
                             </div>
                         </div>
                         ${optHtml ? `<div class="flex flex-wrap gap-1 mt-1.5">${optHtml}</div>` : ''}
@@ -219,7 +229,7 @@
                 </div>
                 <div class="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between flex-wrap gap-2">
                     <div class="flex items-center gap-2 flex-wrap">
-                        ${order.note ? `<span class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-0.5 font-medium">📝 ${order.note}</span>` : ''}
+                        ${displayNote ? `<span class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-0.5 font-medium">📝 ${displayNote}</span>` : ''}
                         ${isPaid ? `<span class="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-lg">✓ 已付款</span>` : ''}
                     </div>
                     <span class="font-black text-gray-800 text-base shrink-0">NT$ ${(order.total_price || 0).toLocaleString()}</span>
@@ -240,6 +250,11 @@
         const order = allOrders.find(o => o.id === orderId);
         if (order) order.status = newStatus;
         renderOrders();
+
+        if (typeof window.updateOrderInOverview === 'function') {
+            window.updateOrderInOverview({ id: orderId, status: newStatus });
+        }
+
         await window.supabaseClient.from('orders')
             .update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', orderId);
     }
@@ -250,6 +265,11 @@
         order.is_paid = true;
         order.status = 'preparing';
         renderOrders();
+
+        if (typeof window.updateOrderInOverview === 'function') {
+            window.updateOrderInOverview({ id: orderId, is_paid: true, status: 'preparing' });
+        }
+
         await window.supabaseClient.from('orders')
             .update({ is_paid: true, status: 'preparing', updated_at: new Date().toISOString() }).eq('id', orderId);
     }
@@ -266,7 +286,15 @@
         const next = NEXT_STATUS[order.status];
         const payLabel = { cash: '現金', card: '刷卡', linepay: 'Line Pay' }[order.payment_method] || '現金';
 
-        document.getElementById('detail-title').textContent = `訂單 #${num} — ${order.table_name}`;
+        let displayNote = order.note || '';
+        let isAddOn = false;
+        if (displayNote.includes('【加點】')) {
+            isAddOn = true;
+            displayNote = displayNote.replace('【加點】', '').trim();
+        }
+
+        const displayTableName = isAddOn ? `${order.table_name} | 加點` : order.table_name;
+        document.getElementById('detail-title').textContent = `訂單 #${num} — ${displayTableName}`;
 
         document.getElementById('detail-body').innerHTML = `
             <div class="flex items-center justify-between">
@@ -285,7 +313,7 @@
                     <p class="font-bold text-gray-700">${payLabel}</p>
                 </div>
             </div>
-            ${order.note ? `<div class="bg-amber-50 border border-amber-100 rounded-xl p-3 text-sm text-amber-800"><span class="font-bold">備註：</span>${order.note}</div>` : ''}
+            ${displayNote ? `<div class="bg-amber-50 border border-amber-100 rounded-xl p-3 text-sm text-amber-800"><span class="font-bold">備註：</span>${displayNote}</div>` : ''}
             <div>
                 <p class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">餐點明細</p>
                 <div class="space-y-3">
@@ -297,7 +325,7 @@
                             <span class="font-medium text-gray-700">${item.product_name}</span>
                             <div class="flex items-center gap-4 shrink-0">
                                 <span class="text-gray-400 font-mono">×${item.quantity}</span>
-                                <span class="font-bold text-gray-800 w-20 text-right">NT$ ${item.subtotal.toLocaleString()}</span>
+                                <span class="font-bold text-gray-800 w-20 text-right">NT$ ${(item.subtotal || 0).toLocaleString()}</span>
                             </div>
                         </div>
                         ${optHtml ? `<div class="flex flex-wrap gap-1 mt-1.5">${optHtml}</div>` : ''}
@@ -306,7 +334,7 @@
                 </div>
                 <div class="flex justify-between items-center pt-3 mt-2 border-t border-gray-200">
                     <span class="font-bold text-gray-700">合計</span>
-                    <span class="font-black text-xl text-gray-800">NT$ ${order.total_price.toLocaleString()}</span>
+                    <span class="font-black text-xl text-gray-800">NT$ ${(order.total_price || 0).toLocaleString()}</span>
                 </div>
             </div>`;
 
@@ -317,7 +345,7 @@
         if (canCancel) {
             const cancelBtn = document.createElement('button');
             cancelBtn.className = 'flex-1 py-2.5 rounded-xl border-2 border-red-200 text-red-500 font-bold text-sm hover:bg-red-50 transition-all flex items-center justify-center gap-2 active:scale-95';
-            const cancelLabel = order.status === 'pending' ? '拒絕接單' : '取消訂單';
+            const cancelLabel = order.status === 'pending' ? '拒絕接接單' : '取消訂單';
             cancelBtn.innerHTML = `<i data-lucide="x-circle" class="w-4 h-4"></i> ${cancelLabel}`;
             cancelBtn.onclick = async () => {
                 const ok = await window.AppDialog.confirm(`確定要${cancelLabel}嗎？此操作無法復原。`, 'danger', cancelLabel);
@@ -333,15 +361,8 @@
             paidBtn.className = 'flex-1 py-2.5 rounded-xl border-2 border-emerald-500 text-emerald-600 font-bold text-sm hover:bg-emerald-50 transition-all flex items-center justify-center gap-2';
             paidBtn.innerHTML = '<i data-lucide="banknote" class="w-4 h-4"></i> 標記已付款';
             paidBtn.onclick = async () => {
-                order.is_paid = true;
-                order.status = 'preparing';
-                await window.supabaseClient.from('orders').update({
-                    is_paid: true,
-                    status: 'preparing',
-                    updated_at: new Date().toISOString()
-                }).eq('id', orderId);
-                renderOrders();
-                openDetail(orderId);
+                await markPaidAndPrepare(orderId);
+                closeDetail();
             };
             footer.appendChild(paidBtn);
         }
@@ -352,7 +373,7 @@
             nextBtn.innerHTML = `<i data-lucide="arrow-right" class="w-4 h-4"></i> ${next.label}`;
             nextBtn.onclick = async () => {
                 await updateStatus(orderId, next.status);
-                openDetail(orderId);
+                closeDetail();
             };
             footer.appendChild(nextBtn);
         }
@@ -387,8 +408,79 @@
         });
     });
 
+    function renderNotifDropdown() {
+        const notifList = document.getElementById('notif-list');
+        const badge = document.getElementById('header-order-count');
+        const iconWrap = document.getElementById('header-order-icon');
+
+        if (!notifList) return;
+
+        if (unreadOrders.length === 0) {
+            notifList.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm font-bold">目前沒有新訂單</div>';
+            if (badge) badge.classList.add('hidden');
+        } else {
+            if (badge) {
+                badge.textContent = unreadOrders.length;
+                badge.classList.remove('hidden');
+            }
+            notifList.innerHTML = unreadOrders.map(o => `
+                <div class="px-4 py-3 hover:bg-emerald-50 cursor-pointer transition-colors group flex items-center justify-between" onclick="
+                    document.querySelector('[data-target=\\'section-orders\\']').click();
+                    setTimeout(() => openDetail('${o.id}'), 100);
+                    document.getElementById('notif-dropdown').classList.add('opacity-0', 'scale-95');
+                    setTimeout(() => document.getElementById('notif-dropdown').classList.add('hidden'), 200);
+                ">
+                    <div>
+                        <p class="text-sm font-black text-gray-800 group-hover:text-emerald-700">#${String(o.daily_number || 0).padStart(3, '0')} — ${o.table_name}</p>
+                        <p class="text-xs text-gray-500 mt-0.5">NT$ ${(o.total_price || 0).toLocaleString()}</p>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                </div>
+            `).join('');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    }
+
+    // 🌟 綁定右上角選單的點擊行為
+    document.getElementById('header-order-icon')?.addEventListener('click', (e) => {
+        e.stopPropagation(); // 阻止事件冒泡到 document
+        const dropdown = document.getElementById('notif-dropdown');
+        const badge = document.getElementById('header-order-count');
+        const iconWrap = document.getElementById('header-order-icon');
+
+        if (dropdown.classList.contains('hidden')) {
+            dropdown.classList.remove('hidden');
+            setTimeout(() => dropdown.classList.remove('opacity-0', 'scale-95'), 10);
+
+            // 當點開時，立刻讓搖晃和紅色數字消失
+            if (badge) badge.classList.add('hidden');
+            if (iconWrap) iconWrap.classList.remove('animate-ring', 'text-emerald-500');
+        } else {
+            dropdown.classList.add('opacity-0', 'scale-95');
+            setTimeout(() => dropdown.classList.add('hidden'), 200);
+        }
+    });
+
+    // 點擊外面時自動關閉選單
+    document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('notif-dropdown');
+        const iconWrap = document.getElementById('header-order-icon');
+        if (dropdown && !dropdown.classList.contains('hidden') && !dropdown.contains(e.target) && !iconWrap.contains(e.target)) {
+            dropdown.classList.add('opacity-0', 'scale-95');
+            setTimeout(() => dropdown.classList.add('hidden'), 200);
+        }
+    });
+
+    document.getElementById('btn-clear-notifs')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        unreadOrders = [];
+        renderNotifDropdown();
+    });
+
     function subscribeRealtime(storeId) {
         if (realtimeChannel) realtimeChannel.unsubscribe();
+
+        const processingNewOrders = new Set();
 
         realtimeChannel = window.supabaseClient
             .channel('orders-realtime-' + storeId)
@@ -397,29 +489,45 @@
                 schema: 'public',
                 table: 'orders',
                 filter: `store_id=eq.${storeId}`
-            }, async (payload) => {
-                const { data: newOrder } = await window.supabaseClient
-                    .from('orders')
-                    .select('id, store_id, table_name, status, total_price, payment_method, is_paid, note, daily_number, created_at, order_items(product_name, quantity, subtotal, options)')
-                    .eq('id', payload.new.id)
-                    .single();
+            }, (payload) => {
+                const orderId = payload.new.id;
+                if (allOrders.some(o => o.id === orderId) || processingNewOrders.has(orderId)) return;
+                processingNewOrders.add(orderId);
 
-                if (newOrder) {
-                    allOrders.unshift(newOrder);
-                    renderOrders();
+                setTimeout(async () => {
+                    try {
+                        const { data: newOrder } = await window.supabaseClient
+                            .from('orders')
+                            .select('id, store_id, table_name, status, total_price, payment_method, is_paid, note, daily_number, created_at, order_items(product_name, quantity, subtotal, options)')
+                            .eq('id', orderId)
+                            .single();
 
-                    if (typeof window.playNotification === 'function') window.playNotification();
+                        if (newOrder && newOrder.order_items && newOrder.order_items.length > 0) {
+                            if (!allOrders.some(o => o.id === newOrder.id)) {
+                                allOrders.unshift(newOrder);
+                                renderOrders();
 
-                    const badge = document.getElementById('orders-new-badge');
-                    badge?.classList.remove('hidden');
-                    setTimeout(() => badge?.classList.add('hidden'), 5000);
+                                // 🌟 將新單推入通知名單，並重繪選單
+                                unreadOrders.unshift(newOrder);
+                                renderNotifDropdown();
 
-                    const navOrders = document.querySelector('[data-target="section-orders"]');
-                    navOrders?.classList.add('text-red-500');
-                    setTimeout(() => navOrders?.classList.remove('text-red-500'), 5000);
+                                if (typeof window.playNotification === 'function') window.playNotification();
 
-                    if (typeof window.notifyNewOrder === 'function') window.notifyNewOrder(newOrder);
-                }
+                                const navOrders = document.querySelector('[data-target="section-orders"]');
+                                navOrders?.classList.add('text-red-500');
+                                setTimeout(() => navOrders?.classList.remove('text-red-500'), 5000);
+
+                                if (typeof window.addOrderToOverview === 'function') {
+                                    window.addOrderToOverview(newOrder);
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Realtime fetch error:', err);
+                    } finally {
+                        processingNewOrders.delete(orderId);
+                    }
+                }, 800);
             })
             .on('postgres_changes', {
                 event: 'UPDATE',
@@ -428,15 +536,17 @@
                 filter: `store_id=eq.${storeId}`
             }, (payload) => {
                 const idx = allOrders.findIndex(o => o.id === payload.new.id);
-                if (idx !== -1) allOrders[idx] = { ...allOrders[idx], ...payload.new };
-                renderOrders();
+                if (idx !== -1) {
+                    allOrders[idx] = { ...allOrders[idx], ...payload.new };
+                    renderOrders();
+                }
+                if (typeof window.updateOrderInOverview === 'function') {
+                    window.updateOrderInOverview(payload.new);
+                }
             })
             .subscribe();
     }
 
-    // =============================================
-    // 背景初始化：一進網頁就先抓取訂單，顯示側邊欄/頂部數字並啟動監聽
-    // =============================================
     setTimeout(() => {
         if (typeof window.loadOrders === 'function') {
             window.loadOrders();
