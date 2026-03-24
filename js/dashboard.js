@@ -567,7 +567,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    if (btnCreateProduct) btnCreateProduct.addEventListener('click', () => toggleProductModal(true));
+    // 🌟 修改：新增餐點防呆攔截 (必須先有分類才能新增餐點)
+    if (btnCreateProduct) {
+        btnCreateProduct.addEventListener('click', async () => {
+            const storeId = await getStoreId();
+            if (!storeId) return;
+
+            // 按鈕顯示載入中，避免連點
+            const originalHtml = btnCreateProduct.innerHTML;
+            btnCreateProduct.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> 檢查中...';
+            btnCreateProduct.disabled = true;
+
+            try {
+                // 去資料庫偷偷看一眼：這家店有沒有任何分類？
+                const { data: categories } = await window.supabaseClient
+                    .from('categories')
+                    .select('id')
+                    .eq('store_id', storeId)
+                    .limit(1);
+
+                // 如果陣列是空的，代表完全沒分類！
+                if (!categories || categories.length === 0) {
+                    // 彈出我們的高質感對話框
+                    const goCreate = await window.AppDialog.show({
+                        title: '尚未建立分類',
+                        message: '新增餐點前，請先建立至少一個「餐點分類」（例如：主食、飲品）。\n\n是否現在前往建立？',
+                        type: 'warning',
+                        showCancel: true
+                    });
+
+                    // 如果老闆按了「確定」，就自動幫他打開分類管理的視窗
+                    if (goCreate) {
+                        toggleCategoryModal(true);
+                    }
+                    return; // 🛑 攔截！不讓他打開新增餐點視窗
+                }
+
+                // 如果檢查通過，才讓他順利打開新增餐點視窗
+                toggleProductModal(true);
+
+            } catch (err) {
+                console.error('檢查分類失敗:', err);
+            } finally {
+                // 恢復按鈕狀態
+                btnCreateProduct.innerHTML = originalHtml;
+                btnCreateProduct.disabled = false;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+        });
+    }
     if (btnCloseProductModal) btnCloseProductModal.addEventListener('click', () => toggleProductModal(false));
     if (btnCancelProduct) btnCancelProduct.addEventListener('click', () => toggleProductModal(false));
 
@@ -822,9 +870,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const { data: { user } } = await window.supabaseClient.auth.getUser();
         if (!user) return;
 
+        // 🌟 這裡多 select 了 allow_addon
         const { data: store } = await window.supabaseClient
             .from('stores')
-            .select('id, name, phone, address, logo_url, is_open')
+            .select('id, name, phone, address, logo_url, is_open, allow_addon')
             .eq('owner_id', user.id)
             .single();
 
@@ -845,9 +894,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (store.logo_url) {
             const prev = document.getElementById('setting-logo-preview');
             const icon = document.getElementById('logo-placeholder-icon');
+            const btnRemoveLogo = document.getElementById('btn-remove-logo');
             if (prev) { prev.src = store.logo_url; prev.classList.remove('hidden'); }
             if (icon) icon.classList.add('hidden');
-            // 🌟 若已存在 Logo，將叉叉按鈕顯示出來
             if (btnRemoveLogo) btnRemoveLogo.classList.remove('hidden');
         }
 
@@ -858,6 +907,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sidebarEmail) sidebarEmail.textContent = user.email || '';
 
         updateToggleUI(store.is_open !== false);
+
+        // 🌟 新增：綁定點餐功能設定開關
+        const addonToggle = document.getElementById('setting-allow-addon');
+        if (addonToggle) {
+            addonToggle.checked = store.allow_addon !== false;
+            addonToggle.onchange = async (e) => {
+                const isAllowed = e.target.checked;
+                addonToggle.disabled = true; // 鎖定防連點
+                await window.supabaseClient.from('stores').update({ allow_addon: isAllowed }).eq('id', store.id);
+                addonToggle.disabled = false;
+            };
+        }
     }
 
     function updateToggleUI(isOpen) {
