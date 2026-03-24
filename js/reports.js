@@ -1,5 +1,5 @@
 // =============================================
-// reports.js — 營收報表 (支援快速按鈕、自訂日期區間與高質感日曆)
+// reports.js — 營收報表 (含高質感日曆與 🌟 獨家熱門客製化分析)
 // =============================================
 (async function () {
     let storeId = null;
@@ -34,9 +34,9 @@
         end.setHours(23, 59, 59, 999);
 
         if (period === 'week') {
-            start.setDate(now.getDate() - 6); // 過去 7 天 (含今天)
+            start.setDate(now.getDate() - 6);
         } else if (period === 'month') {
-            start.setDate(1); // 本月 1 號
+            start.setDate(1);
         }
         return { start, end };
     }
@@ -45,19 +45,18 @@
     const endDateInput = document.getElementById('report-end-date');
     const quickBtns = document.querySelectorAll('.report-filter-btn');
 
-    // 🌟 初始化 Flatpickr 日曆套件
     let fpStart = null;
     let fpEnd = null;
     if (typeof flatpickr !== 'undefined') {
         fpStart = flatpickr(startDateInput, {
             dateFormat: "Y-m-d",
             disableMobile: true,
-            locale: "zh_tw"  // 🌟 加上這行：強制使用繁體中文
+            locale: "zh_tw"
         });
         fpEnd = flatpickr(endDateInput, {
             dateFormat: "Y-m-d",
             disableMobile: true,
-            locale: "zh_tw"  // 🌟 加上這行：強制使用繁體中文
+            locale: "zh_tw"
         });
     }
 
@@ -67,7 +66,6 @@
 
         let startDate, endDate;
 
-        // 判斷查詢的日期範圍
         if (startInputStr && endInputStr) {
             startDate = new Date(startInputStr);
             startDate.setHours(0, 0, 0, 0);
@@ -84,7 +82,6 @@
                 startDate = range.start;
                 endDate = range.end;
 
-                // 同步更新日曆顯示 (使用套件的 setDate 方法)
                 if (fpStart) fpStart.setDate(startDate);
                 else if (startDateInput) startDateInput.value = formatDateForInput(startDate);
 
@@ -95,9 +92,10 @@
 
         const daysDiff = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24)));
 
+        // 🌟 核心修改 1：確保 select 裡面有抓取 options 欄位
         const { data: orders } = await window.supabaseClient
             .from('orders')
-            .select('id, store_id, status, total_price, payment_method, is_paid, created_at, order_items(product_name, quantity)')
+            .select('id, store_id, status, total_price, payment_method, is_paid, created_at, order_items(product_name, quantity, options)')
             .eq('store_id', id)
             .gte('created_at', startDate.toISOString())
             .lte('created_at', endDate.toISOString())
@@ -110,7 +108,6 @@
         renderTopItems(data);
     };
 
-    // 事件綁定：快速按鈕切換
     quickBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             quickBtns.forEach(b => {
@@ -122,7 +119,6 @@
 
             const range = getQuickRange(btn.dataset.range);
 
-            // 🌟 透過套件將日期填入輸入框
             if (fpStart) fpStart.setDate(range.start);
             else if (startDateInput) startDateInput.value = formatDateForInput(range.start);
 
@@ -133,7 +129,6 @@
         });
     });
 
-    // 事件綁定：自訂查詢按鈕
     const btnCustomReport = document.getElementById('btn-custom-report');
     if (btnCustomReport) {
         btnCustomReport.addEventListener('click', () => {
@@ -233,7 +228,7 @@
 
     function renderPaymentChart(orders) {
         const counts = {};
-        const labels = { cash: '現金', card: '刷卡', linepay: '行動支付' }; // 🌟 順手幫你改成行動支付
+        const labels = { cash: '現金', card: '刷卡', linepay: '行動支付' };
         const colors = { cash: '#10b981', card: '#3b82f6', linepay: '#00b900' };
 
         orders.forEach(o => {
@@ -282,37 +277,97 @@
         }
     }
 
+    // 🌟 核心修改 2：加入熱門客製化選項分析
     function renderTopItems(orders) {
-        const itemCounts = {};
+        const itemStats = {};
+
+        // 遍歷所有非取消的訂單明細
         orders.forEach(o => {
             if (o.status !== 'cancelled') {
                 (o.order_items || []).forEach(item => {
-                    const n = item.product_name;
-                    itemCounts[n] = (itemCounts[n] || 0) + item.quantity;
+                    const name = item.product_name;
+                    const qty = item.quantity;
+                    const opts = item.options;
+
+                    // 初始化該餐點的統計物件
+                    if (!itemStats[name]) {
+                        itemStats[name] = { totalQty: 0, optionCounts: {} };
+                    }
+
+                    itemStats[name].totalQty += qty;
+
+                    // 如果這筆點單有客製化選項，進行組合計票
+                    if (opts && Object.keys(opts).length > 0) {
+                        let optionStrings = [];
+                        Object.values(opts).forEach(opt => {
+                            if (opt.choices) {
+                                optionStrings.push(opt.choices.map(c => c.label).join('、'));
+                            } else if (opt.value) {
+                                optionStrings.push(opt.value);
+                            }
+                        });
+
+                        // 將所有選項組合成一個字串當作 Key，例如 "少冰, 半糖, 加珍珠"
+                        const optionComboKey = optionStrings.filter(Boolean).join(', ');
+
+                        if (optionComboKey) {
+                            itemStats[name].optionCounts[optionComboKey] = (itemStats[name].optionCounts[optionComboKey] || 0) + qty;
+                        }
+                    }
                 });
             }
         });
 
-        const sorted = Object.entries(itemCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
-        const max = sorted[0]?.[1] || 1;
+        // 排序：依據總銷量遞減，只取前 10 名
+        const sortedItems = Object.entries(itemStats)
+            .sort((a, b) => b[1].totalQty - a[1].totalQty)
+            .slice(0, 10);
+
+        const maxQty = sortedItems[0]?.[1].totalQty || 1;
         const container = document.getElementById('rp-top-items');
         if (!container) return;
 
-        if (sorted.length === 0) {
+        if (sortedItems.length === 0) {
             container.innerHTML = '<p class="p-8 text-center text-gray-400 text-sm">該區間尚無熱銷資料</p>';
             return;
         }
 
-        container.innerHTML = sorted.map(([name, count], i) => `
-            <div class="px-6 py-3.5 flex items-center gap-4 hover:bg-gray-50 transition-colors">
-                <span class="w-6 text-center font-black text-sm ${i < 3 ? 'text-emerald-500' : 'text-gray-300'}">${i + 1}</span>
+        container.innerHTML = sortedItems.map(([name, stats], i) => {
+            const count = stats.totalQty;
+
+            // 找出該餐點最受歡迎的客製化組合 (票數最高者)
+            let topOptionString = '';
+            if (Object.keys(stats.optionCounts).length > 0) {
+                const topOption = Object.entries(stats.optionCounts)
+                    .sort((a, b) => b[1] - a[1])[0]; // 取票數最高的第一名
+
+                // 只有當該客製化的選擇次數超過總銷量的 20% 時，才值得顯示為「熱門偏好」
+                if (topOption[1] >= (count * 0.2)) {
+                    topOptionString = `
+                        <div class="mt-1 flex items-center gap-1">
+                            <span class="bg-amber-50 text-amber-600 text-[10px] font-black px-1.5 py-0.5 rounded border border-amber-100 flex items-center"><i data-lucide="sparkles" class="w-3 h-3 mr-0.5"></i> 熱門偏好</span>
+                            <span class="text-[11px] text-gray-500 font-medium truncate">${topOption[0]}</span>
+                        </div>
+                    `;
+                }
+            }
+
+            return `
+            <div class="px-6 py-4 flex items-start gap-4 hover:bg-gray-50 transition-colors">
+                <span class="w-6 text-center font-black text-sm mt-0.5 ${i < 3 ? 'text-emerald-500' : 'text-gray-300'}">${i + 1}</span>
                 <div class="flex-1 min-w-0">
                     <p class="font-bold text-gray-800 text-sm truncate">${name}</p>
-                    <div class="mt-1.5 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div class="h-full bg-emerald-400 rounded-full transition-all duration-500" style="width:${Math.round(count / max * 100)}%"></div>
+                    ${topOptionString}
+                    <div class="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-emerald-400 rounded-full transition-all duration-500" style="width:${Math.round(count / maxQty * 100)}%"></div>
                     </div>
                 </div>
-                <span class="font-black text-gray-700 text-sm shrink-0">${count} 份</span>
-            </div>`).join('');
+                <div class="flex flex-col items-end shrink-0">
+                    <span class="font-black text-gray-700 text-sm">${count} <span class="text-xs font-bold text-gray-400">份</span></span>
+                </div>
+            </div>`;
+        }).join('');
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 })();
